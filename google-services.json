@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "256615146699",
+    "firebase_url": "https://aikingbd-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "aikingbd",
+    "storage_bucket": "aikingbd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:256615146699:android:2a112f75916c82249e674e",
+        "android_client_info": {
+          "package_name": "com.aimai.max"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBxZXERHP1bRmde5vIaRh6bdVf6pUhS9KU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
