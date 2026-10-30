@@ -1,8 +1,15 @@
 package com.aimai.max;
 
 import android.app.Activity;
+import android.media.projection.MediaProjectionManager;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.app.AlertDialog;
 import android.os.Bundle;
+import android.os.Build;
+import android.provider.Settings;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
@@ -10,6 +17,7 @@ import android.view.View;
 import android.widget.*;
 
 public class MainActivity extends Activity {
+    private static final int SCREEN_CAPTURE_REQUEST = 2002;
     int bg = Color.rgb(12, 14, 20);
     int panel = Color.rgb(25, 29, 39);
     int gold = Color.rgb(225, 181, 75);
@@ -49,9 +57,48 @@ public class MainActivity extends Activity {
             .show();
     }
 
+
+    private void requestScreenCapturePermission() {
+        MediaProjectionManager manager =
+                (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        startActivityForResult(
+                manager.createScreenCaptureIntent(),
+                SCREEN_CAPTURE_REQUEST
+        );
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == SCREEN_CAPTURE_REQUEST) {
+            if (resultCode == RESULT_OK && data != null) {
+                Intent captureIntent = new Intent(this, ScreenCaptureService.class);
+                captureIntent.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode);
+                captureIntent.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(captureIntent);
+                } else {
+                    startService(captureIntent);
+                }
+            } else {
+                Toast.makeText(this, "Screen capture permission was denied.",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
         if (!LicenseManager.hasValidLocalLicense(this)) {
             startActivity(new android.content.Intent(this, LicenseActivity.class));
             finish();
@@ -97,9 +144,41 @@ public class MainActivity extends Activity {
         game.addView(text("Carrom Assistant", 14, Color.LTGRAY));
 
         Button launch = button("Launch");
-        launch.setOnClickListener(v ->
-            openMessage("Carrom Disc Pool launch integration will be configured next.")
-        );
+        launch.setOnClickListener(v -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    && !Settings.canDrawOverlays(this)) {
+                Intent permissionIntent = new Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())
+                );
+                startActivity(permissionIntent);
+                openMessage("Allow AimAi Max to display over other apps, then tap Launch again.");
+                return;
+            }
+
+            Intent assistantIntent = new Intent(
+                this,
+                com.aimai.max.assistant.AssistantOverlayService.class
+            );
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(assistantIntent);
+            } else {
+                startService(assistantIntent);
+            }
+
+            requestScreenCapturePermission();
+
+            Intent gameIntent = getPackageManager()
+                .getLaunchIntentForPackage("com.miniclip.carrom");
+
+            if (gameIntent != null) {
+                gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(gameIntent);
+            } else {
+                openMessage("Carrom Disc Pool was not found. Please install the game first.");
+            }
+        });
         game.addView(launch);
         root.addView(game);
 
