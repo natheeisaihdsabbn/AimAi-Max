@@ -25,7 +25,6 @@ public class ScreenCaptureService extends Service {
     private MediaProjection projection;
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
-    private final CarromBoardAnalyzer boardAnalyzer = new CarromBoardAnalyzer();
     private long lastAnalysisTime = 0L;
 
     @Override
@@ -89,24 +88,72 @@ public class ScreenCaptureService extends Service {
                             );
                             raw.recycle();
 
-                            CarromBoardAnalyzer.AnalysisResult result =
-                                    boardAnalyzer.analyze(cropped);
-                            android.content.Intent analysisIntent =
-                                    new android.content.Intent("com.aimai.max.BOARD_ANALYSIS");
+                            CarromBoardAnalyzer.Analysis result = CarromBoardAnalyzer.analyze(cropped);
+                            float frameW = cropped.getWidth();
+                            float frameH = cropped.getHeight();
+
+                            int strikerCount = result.striker != null ? 1 : 0;
+                            int coinCount = 0;
+                            for (CarromBoardAnalyzer.Piece p : result.pieces) {
+                                if (p != result.striker) coinCount++;
+                            }
+                            android.util.Log.d("AimAiMax", "Detected pockets: " + result.pockets.size());
+                            android.util.Log.d("AimAiMax", "Piece scan: " + result.pieces.size()
+                                    + ", strikers: " + strikerCount + ", guti: " + coinCount);
+
+                            Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");
+                            guideIntent.setPackage(getPackageName());
+                            guideIntent.putExtra("strikerCount", strikerCount);
+                            guideIntent.putExtra("gutiCount", coinCount);
+
+                            CarromBoardAnalyzer.Piece firstPiece = result.striker;
+                            if (firstPiece == null && !result.pieces.isEmpty()) {
+                                firstPiece = result.pieces.get(0);
+                            }
+                            if (firstPiece != null) {
+                                guideIntent.putExtra("pieceX", firstPiece.x / frameW);
+                                guideIntent.putExtra("pieceY", firstPiece.y / frameH);
+                                guideIntent.putExtra("isStriker", firstPiece == result.striker);
+                                guideIntent.putExtra("strikerRadius", firstPiece.radius / frameW);
+                                guideIntent.putExtra("strikerRadiusX", firstPiece.radius / frameW);
+                                guideIntent.putExtra("strikerRadiusY", firstPiece.radius / frameH);
+
+                                CarromBoardAnalyzer.Piece targetPiece = null;
+                                float nearestDistance = Float.MAX_VALUE;
+                                for (CarromBoardAnalyzer.Piece candidate : result.pieces) {
+                                    if (candidate == firstPiece) continue;
+                                    float dx = (candidate.x - firstPiece.x) / frameW;
+                                    float dy = (candidate.y - firstPiece.y) / frameH;
+                                    float distance = dx * dx + dy * dy;
+                                    if (distance > 0.0004f && distance < nearestDistance) {
+                                        nearestDistance = distance;
+                                        targetPiece = candidate;
+                                    }
+                                }
+
+                                if (targetPiece != null) {
+                                    guideIntent.putExtra("targetPieceX", targetPiece.x / frameW);
+                                    guideIntent.putExtra("targetPieceY", targetPiece.y / frameH);
+                                    guideIntent.putExtra("targetPieceRadius", targetPiece.radius / frameW);
+                                    guideIntent.putExtra("targetPieceRadiusX", targetPiece.radius / frameW);
+                                    guideIntent.putExtra("targetPieceRadiusY", targetPiece.radius / frameH);
+                                    guideIntent.putExtra("targetFound", true);
+                                } else {
+                                    guideIntent.putExtra("targetFound", false);
+                                }
+                            }
+                            sendBroadcast(guideIntent);
+
+                            Intent analysisIntent = new Intent("com.aimai.max.BOARD_ANALYSIS");
                             analysisIntent.setPackage(getPackageName());
-                            analysisIntent.putExtra("found", result.boardCandidateFound);
-                            analysisIntent.putExtra("centerX", result.centerX);
-                            analysisIntent.putExtra("centerY", result.centerY);
-                            analysisIntent.putExtra("boardWidth", result.boardWidth);
-                            analysisIntent.putExtra("boardHeight", result.boardHeight);
+                            analysisIntent.putExtra("found", result.board.detected);
+                            analysisIntent.putExtra("centerX", (result.board.left + result.board.right) / 2f / frameW);
+                            analysisIntent.putExtra("centerY", (result.board.top + result.board.bottom) / 2f / frameH);
+                            analysisIntent.putExtra("boardWidth", result.board.width() / frameW);
+                            analysisIntent.putExtra("boardHeight", result.board.height() / frameH);
                             sendBroadcast(analysisIntent);
 
-
-                            android.util.Log.d(
-                                    "AimAiMax",
-                                    "Frame analyzed. Board candidate: "
-                                            + result.boardCandidateFound
-                            );
+                            android.util.Log.d("AimAiMax", "Frame analyzed. Board candidate: " + result.board.detected);
                             cropped.recycle();
                         }
                     }

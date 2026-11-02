@@ -32,8 +32,66 @@ public class AssistantOverlayService extends Service {
     private String selectedStyle = "FOCUS";
     private int accent = Color.rgb(0, 220, 190);
     private int thickness = 5;
+    private android.content.SharedPreferences.OnSharedPreferenceChangeListener liveGuidePreferencesListener;
 
     private boolean boardReceiverRegistered = false;
+
+    private boolean pieceReceiverRegistered = false;
+
+    private final android.content.BroadcastReceiver pieceReceiver =
+            new android.content.BroadcastReceiver() {
+        @Override
+        public void onReceive(android.content.Context context,
+                              android.content.Intent intent) {
+            if (aimGuideView == null || !enabled) return;
+
+            if (!intent.getBooleanExtra("isStriker", false)) {
+    aimGuideView.setGuideEnabled(false);
+    return;
+}
+
+            float x = intent.getFloatExtra("pieceX", 0.5f);
+            float y = intent.getFloatExtra("pieceY", 0.8f);
+
+            boolean targetFound = intent.getBooleanExtra("targetFound", false);
+            if (targetFound) {
+                float targetX = intent.getFloatExtra("targetPieceX", x);
+                float targetY = intent.getFloatExtra("targetPieceY", y);
+                CarromPhysicsEngine.CollisionPrediction prediction =
+                        CarromPhysicsEngine.predictCollision(
+                                x, y, targetX, targetY);
+
+                if (prediction.valid) {
+                    float strikerRadiusX = intent.getFloatExtra("strikerRadiusX", 0f);
+                    float strikerRadiusY = intent.getFloatExtra("strikerRadiusY", 0f);
+                    float targetRadiusX = intent.getFloatExtra("targetPieceRadiusX", 0f);
+                    float targetRadiusY = intent.getFloatExtra("targetPieceRadiusY", 0f);
+
+                    float[] contact = CarromPhysicsEngine.calculateCollisionContactXY(
+                            x, y, targetX, targetY,
+                            strikerRadiusX, strikerRadiusY,
+                            targetRadiusX, targetRadiusY);
+
+                    if (contact != null) {
+                        aimGuideView.setGuide(
+                                x, y,
+                                Math.max(0f, Math.min(1f, contact[0])),
+                                Math.max(0f, Math.min(1f, contact[1])));
+                    } else {
+                        aimGuideView.setGuide(x, y, targetX, targetY);
+                    }
+                } else {
+                    aimGuideView.setGuide(x, y, targetX, targetY);
+                }
+            } else {
+                aimGuideView.setGuide(x, y, x, Math.max(0.05f, y - 0.25f));
+            }
+
+
+            aimGuideView.setGuideEnabled(true);
+        }
+    };
+
 
     private final android.content.BroadcastReceiver boardReceiver =
             new android.content.BroadcastReceiver() {
@@ -48,13 +106,7 @@ public class AssistantOverlayService extends Service {
                 return;
             }
 
-            float cx = intent.getFloatExtra("centerX", 0.5f);
-            float cy = intent.getFloatExtra("centerY", 0.5f);
-            float bh = intent.getFloatExtra("boardHeight", 0.3f);
-
-            float startY = Math.min(0.95f, cy + bh * 0.40f);
-            aimGuideView.setGuide(cx, startY, cx, cy);
-            aimGuideView.setGuideEnabled(enabled);
+            aimGuideView.setGuideEnabled(true);
         }
     };
 
@@ -96,6 +148,17 @@ public class AssistantOverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        android.content.SharedPreferences prefs =
+                getSharedPreferences("aimai_settings", MODE_PRIVATE);
+        String[] savedStyles = {
+                "FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"
+        };
+        int savedStyle = prefs.getInt("guide_style", 0);
+        if (savedStyle >= 0 && savedStyle < savedStyles.length) {
+            selectedStyle = savedStyles[savedStyle];
+        }
+        thickness = Math.max(1, prefs.getInt("guide_thickness", 8));
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                 "aimai_assistant", "AimAi Max Assistant",
@@ -117,6 +180,22 @@ public class AssistantOverlayService extends Service {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         aimGuideView = new AimGuideView(this);
+        aimGuideView.setGuideStyle(selectedStyle);
+        aimGuideView.setGuideThickness(thickness);
+        liveGuidePreferencesListener = (preferences, key) -> {
+            if ("guide_style".equals(key)) {
+                String[] styles = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
+                int index = preferences.getInt(key, 0);
+                if (index >= 0 && index < styles.length) {
+                    selectedStyle = styles[index];
+                    aimGuideView.setGuideStyle(selectedStyle);
+                }
+            } else if ("guide_thickness".equals(key)) {
+                thickness = Math.max(1, preferences.getInt(key, 8));
+                aimGuideView.setGuideThickness(thickness);
+            }
+        };
+        prefs.registerOnSharedPreferenceChangeListener(liveGuidePreferencesListener);
         createPanel();
 
         android.content.IntentFilter boardFilter =
@@ -128,6 +207,17 @@ public class AssistantOverlayService extends Service {
             registerReceiver(boardReceiver, boardFilter);
         }
         boardReceiverRegistered = true;
+
+        android.content.IntentFilter pieceFilter =
+                new android.content.IntentFilter("com.aimai.max.GUTI_GUIDE_DATA");
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(pieceReceiver, pieceFilter,
+                    android.content.Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(pieceReceiver, pieceFilter);
+        }
+        pieceReceiverRegistered = true;
+
     }
 
     private void createPanel() {
@@ -282,7 +372,6 @@ public class AssistantOverlayService extends Service {
         params.x = dp(12);
         params.y = dp(100);
 
-        windowManager.addView(panel, params);
         WindowManager.LayoutParams guideParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -295,6 +384,7 @@ public class AssistantOverlayService extends Service {
                 android.graphics.PixelFormat.TRANSLUCENT
         );
         windowManager.addView(aimGuideView, guideParams);
+        windowManager.addView(panel, params);
 
     }
 
@@ -305,12 +395,26 @@ public class AssistantOverlayService extends Service {
 
     @Override
     public void onDestroy() {
+        if (liveGuidePreferencesListener != null) {
+            getSharedPreferences("aimai_settings", MODE_PRIVATE)
+                    .unregisterOnSharedPreferenceChangeListener(liveGuidePreferencesListener);
+            liveGuidePreferencesListener = null;
+        }
+
         if (boardReceiverRegistered) {
             try {
                 unregisterReceiver(boardReceiver);
             } catch (IllegalArgumentException ignored) {
             }
             boardReceiverRegistered = false;
+        }
+
+        if (pieceReceiverRegistered) {
+            try {
+                unregisterReceiver(pieceReceiver);
+            } catch (IllegalArgumentException ignored) {
+            }
+            pieceReceiverRegistered = false;
         }
 
         if (panel != null && windowManager != null) {

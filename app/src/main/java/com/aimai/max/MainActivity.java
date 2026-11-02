@@ -1,6 +1,7 @@
 package com.aimai.max;
 
 import android.app.Activity;
+import com.aimai.max.assistant.ScreenCaptureService;
 import android.media.projection.MediaProjectionManager;
 import android.Manifest;
 import android.content.pm.PackageManager;
@@ -82,11 +83,36 @@ public class MainActivity extends Activity {
                 } else {
                     startService(captureIntent);
                 }
+
+                Intent gameIntent = getPackageManager()
+                        .getLaunchIntentForPackage("com.miniclip.carrom");
+                if (gameIntent != null) {
+                    gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(gameIntent);
+                } else {
+                    openMessage("Carrom Disc Pool was not found. Please install the game first.");
+                }
             } else {
                 Toast.makeText(this, "Screen capture permission was denied.",
                         Toast.LENGTH_LONG).show();
             }
         }
+    }
+
+    private void applyKeepScreenAwake() {
+        boolean enabled = getSharedPreferences("aimai_settings", MODE_PRIVATE)
+                .getBoolean("keep_screen_awake", false);
+        if (enabled) {
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        } else {
+            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        applyKeepScreenAwake();
     }
 
     @Override
@@ -169,15 +195,7 @@ public class MainActivity extends Activity {
 
             requestScreenCapturePermission();
 
-            Intent gameIntent = getPackageManager()
-                .getLaunchIntentForPackage("com.miniclip.carrom");
 
-            if (gameIntent != null) {
-                gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(gameIntent);
-            } else {
-                openMessage("Carrom Disc Pool was not found. Please install the game first.");
-            }
         });
         game.addView(launch);
         root.addView(game);
@@ -206,6 +224,50 @@ public class MainActivity extends Activity {
             root.addView(b);
         }
 
-        setContentView(scroll);
+        android.widget.LinearLayout appContainer =
+                new android.widget.LinearLayout(this);
+        appContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        android.widget.FrameLayout screenHost =
+                new android.widget.FrameLayout(this);
+
+        android.widget.LinearLayout.LayoutParams contentParams =
+                new android.widget.LinearLayout.LayoutParams(
+                        -1, 0, 1f);
+
+        appContainer.addView(screenHost, contentParams);
+        screenHost.addView(scroll);
+
+        android.widget.LinearLayout navigation =
+                new android.widget.LinearLayout(this);
+        navigation.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        navigation.setBackgroundColor(Color.rgb(20, 24, 36));
+
+        String[] screens = {
+                "Home", "Friends", "Equipment", "Events", "Shop", "Settings"
+        };
+
+        for (String screen : screens) {
+            android.widget.TextView button = new android.widget.TextView(this);
+            button.setText(screen);
+            button.setTextColor(Color.WHITE);
+            button.setTextSize(10);
+            button.setGravity(android.view.Gravity.CENTER);
+            button.setPadding(3, 16, 3, 16);
+            button.setOnClickListener(v -> {
+                screenHost.removeAllViews();
+                View page = screen.equals("Home")
+                        ? scroll
+                        : com.aimai.max.ui.FeatureScreens.create(this, screen);
+                screenHost.addView(page);
+            });
+
+            navigation.addView(button,
+                    new android.widget.LinearLayout.LayoutParams(
+                            0, -2, 1f));
+        }
+
+        appContainer.addView(navigation);
+        setContentView(appContainer);
     }
 }

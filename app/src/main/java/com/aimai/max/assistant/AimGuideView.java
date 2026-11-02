@@ -25,11 +25,15 @@ public class AimGuideView extends View {
     }
 
     public void setGuide(float sx, float sy, float ex, float ey) {
-        startX = sx;
-        startY = sy;
-        endX = ex;
-        endY = ey;
+        startX = clamp(sx);
+        startY = clamp(sy);
+        endX = clamp(ex);
+        endY = clamp(ey);
         invalidate();
+    }
+
+    private float clamp(float value) {
+        return Math.max(0f, Math.min(1f, value));
     }
 
     public void setThickness(float value) {
@@ -39,6 +43,11 @@ public class AimGuideView extends View {
 
     public void setAccentColor(int color) {
         accentColor = color;
+        invalidate();
+    }
+
+    public void setGuideThickness(float value) {
+        thickness = Math.max(1f, Math.min(20f, value));
         invalidate();
     }
 
