@@ -25,7 +25,7 @@ public class ScreenCaptureService extends Service {
     private MediaProjection projection;
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
-    private long lastAnalysisTime = 0L;
+    private long lastAnalysisTime = 0L;\n    private String previousSignature = "";\n    private int stableFrameCount = 0;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -69,7 +69,7 @@ public class ScreenCaptureService extends Service {
                     frame = reader.acquireLatestImage();
                     if (frame != null) {
                         long now = android.os.SystemClock.elapsedRealtime();
-                        if (now - lastAnalysisTime < 500) return;
+                        if (now - lastAnalysisTime < 500) return;\n                        if (!getSharedPreferences("aimai_settings", MODE_PRIVATE).getBoolean("game_foreground", false)) return;
                         lastAnalysisTime = now;
                         Image.Plane[] planes = frame.getPlanes();
                         if (planes.length > 0) {
@@ -101,7 +101,7 @@ public class ScreenCaptureService extends Service {
                             android.util.Log.d("AimAiMax", "Piece scan: " + result.pieces.size()
                                     + ", strikers: " + strikerCount + ", guti: " + coinCount);
 
-                            Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");
+                            StringBuilder sig = new StringBuilder();\n                            for (CarromBoardAnalyzer.Piece p : result.pieces) sig.append(Math.round(p.x / 12f)).append(",").append(Math.round(p.y / 12f)).append(";");\n                            String currentSignature = sig.toString();\n                            if (currentSignature.equals(previousSignature)) stableFrameCount++; else { stableFrameCount = 0; previousSignature = currentSignature; }\n                            Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");\n                            guideIntent.putExtra("boardStable", stableFrameCount >= 4);
                             guideIntent.setPackage(getPackageName());
                             guideIntent.putExtra("strikerCount", strikerCount);
                             guideIntent.putExtra("gutiCount", coinCount);
@@ -123,7 +123,7 @@ public class ScreenCaptureService extends Service {
                                     guideIntent.putExtra("targetPieceRadiusX", shot.target.radius / frameW);
                                     guideIntent.putExtra("targetPieceRadiusY", shot.target.radius / frameH);
                                     guideIntent.putExtra("ghostX", shot.ghostX / frameW);
-                                    guideIntent.putExtra("ghostY", shot.ghostY / frameH);
+                                    guideIntent.putExtra("ghostY", shot.ghostY / frameH);\n                                    guideIntent.putExtra("shotPower", Math.max(0f, Math.min(1f, shot.score / 100f)));
                                     guideIntent.putExtra("pocketX", shot.pocket.x / frameW);
                                     guideIntent.putExtra("pocketY", shot.pocket.y / frameH);
                                     guideIntent.putExtra("cutAngle", shot.cutAngleDeg);
