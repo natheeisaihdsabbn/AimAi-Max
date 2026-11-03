@@ -220,40 +220,84 @@ public class AssistantOverlayService extends Service {
 
     }
 
+    private TextView bubble;
+
+    private void showPanel() {
+        if (bubble != null) bubble.setVisibility(View.GONE);
+        if (panel != null) panel.setVisibility(View.VISIBLE);
+    }
+
+    private void showBubble() {
+        if (panel != null) panel.setVisibility(View.GONE);
+        if (bubble != null) bubble.setVisibility(View.VISIBLE);
+    }
+
     private void createPanel() {
-        panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(12), dp(10), dp(12), dp(12));
-        panel.setBackground(shape(Color.rgb(15, 20, 32), 20));
+        aimGuideView.setGuideEnabled(false);
 
-        TextView header = label("✦  AIMAI MAX     ⋮", 17);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setTextColor(accent);
-        panel.addView(header, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(45)));
-
-        header.setOnTouchListener(new View.OnTouchListener() {
+        bubble = label("A", 21);
+        bubble.setGravity(Gravity.CENTER);
+        bubble.setTypeface(null, Typeface.BOLD);
+        bubble.setTextColor(Color.WHITE);
+        bubble.setBackground(shape(accent, 28));
+        WindowManager.LayoutParams bubbleParams = new WindowManager.LayoutParams(
+                dp(54), dp(54),
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        bubbleParams.gravity = Gravity.TOP | Gravity.END;
+        bubbleParams.x = dp(12);
+        bubbleParams.y = dp(160);
+        bubble.setOnClickListener(v -> showPanel());
+        bubble.setOnTouchListener(new View.OnTouchListener() {
             private int startX, startY;
             private float touchX, touchY;
-
-            @Override
+            private boolean moved;
             public boolean onTouch(View view, MotionEvent event) {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    startX = params.x;
-                    startY = params.y;
+                    startX = bubbleParams.x;
+                    startY = bubbleParams.y;
                     touchX = event.getRawX();
                     touchY = event.getRawY();
+                    moved = false;
                     return true;
                 }
                 if (event.getAction() == MotionEvent.ACTION_MOVE) {
-                    params.x = startX + (int) (event.getRawX() - touchX);
-                    params.y = startY + (int) (event.getRawY() - touchY);
-                    windowManager.updateViewLayout(panel, params);
+                    int dx = (int) (event.getRawX() - touchX);
+                    int dy = (int) (event.getRawY() - touchY);
+                    if (Math.abs(dx) + Math.abs(dy) > dp(6)) moved = true;
+                    bubbleParams.x = Math.max(0, startX - dx);
+                    bubbleParams.y = Math.max(0, startY + dy);
+                    windowManager.updateViewLayout(bubble, bubbleParams);
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    if (!moved) showPanel();
                     return true;
                 }
                 return true;
             }
         });
+        windowManager.addView(bubble, bubbleParams);
+
+        panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(12), dp(10), dp(12), dp(12));
+        panel.setBackground(shape(Color.rgb(15, 20, 32), 20));
+
+        LinearLayout headerRow = new LinearLayout(this);
+        headerRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView header = label("AIMAI MAX", 15);
+        header.setTypeface(null, Typeface.BOLD);
+        header.setTextColor(accent);
+        headerRow.addView(header, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        Button collapse = makeButton("MINIMIZE");
+        collapse.setOnClickListener(v -> showBubble());
+        headerRow.addView(collapse);
+        panel.addView(headerRow);
 
         Switch toggle = new Switch(this);
         toggle.setText("Assistant Enabled");
@@ -262,96 +306,53 @@ public class AssistantOverlayService extends Service {
         toggle.setPadding(dp(4), 0, dp(4), 0);
         toggle.setOnCheckedChangeListener((button, checked) -> {
             enabled = checked;
-            Toast.makeText(this, checked ? "Assistant enabled" : "Assistant disabled",
-                    Toast.LENGTH_SHORT).show();
+            if (!checked && aimGuideView != null) aimGuideView.setGuideEnabled(false);
         });
         addRow(panel, toggle);
 
-        TextView styleTitle = label("ASSISTANT STYLE", 12);
+        TextView styleTitle = label("GUIDE STYLE", 12);
         styleTitle.setTextColor(accent);
         panel.addView(styleTitle);
-
         String[] styles = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
         for (int i = 0; i < styles.length; i += 2) {
             LinearLayout row = new LinearLayout(this);
             row.setOrientation(LinearLayout.HORIZONTAL);
-
             for (int j = i; j < Math.min(i + 2, styles.length); j++) {
                 String style = styles[j];
-                Button button = makeButton(style);
-                LinearLayout.LayoutParams buttonParams =
-                        new LinearLayout.LayoutParams(0, dp(43), 1);
-                buttonParams.setMargins(dp(3), dp(3), dp(3), dp(3));
-                row.addView(button, buttonParams);
-
-                button.setOnClickListener(v -> {
-                    if (!enabled) {
-                        Toast.makeText(this, "Enable Assistant first",
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
+                Button choice = makeButton(style);
+                LinearLayout.LayoutParams choiceParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
+                choiceParams.setMargins(dp(3), dp(3), dp(3), dp(3));
+                row.addView(choice, choiceParams);
+                choice.setOnClickListener(v -> {
                     selectedStyle = style;
-                aimGuideView.setGuideStyle(selectedStyle);
-                    Toast.makeText(this, style + " selected",
-                            Toast.LENGTH_SHORT).show();
+                    aimGuideView.setGuideStyle(style);
+                    getSharedPreferences("aimai_settings", MODE_PRIVATE).edit()
+                            .putInt("guide_style", java.util.Arrays.asList(styles).indexOf(style)).apply();
                 });
             }
             panel.addView(row);
         }
 
-        TextView thicknessTitle = label("THICKNESS: " + thickness, 13);
+        TextView thicknessTitle = label("THICKNESS: " + thickness, 12);
         thicknessTitle.setTextColor(Color.LTGRAY);
         panel.addView(thicknessTitle);
-
         SeekBar seekBar = new SeekBar(this);
         seekBar.setMax(20);
         seekBar.setProgress(thickness);
-        seekBar.setProgressTintList(
-                android.content.res.ColorStateList.valueOf(accent));
-        seekBar.setThumbTintList(
-                android.content.res.ColorStateList.valueOf(accent));
+        seekBar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+        seekBar.setThumbTintList(android.content.res.ColorStateList.valueOf(accent));
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override
             public void onProgressChanged(SeekBar bar, int value, boolean user) {
                 thickness = Math.max(1, value);
                 thicknessTitle.setText("THICKNESS: " + thickness);
+                getSharedPreferences("aimai_settings", MODE_PRIVATE).edit()
+                        .putInt("guide_thickness", thickness).apply();
+                aimGuideView.setGuideThickness(thickness);
             }
-            @Override public void onStartTrackingTouch(SeekBar bar) {}
-            @Override public void onStopTrackingTouch(SeekBar bar) {}
+            public void onStartTrackingTouch(SeekBar bar) {}
+            public void onStopTrackingTouch(SeekBar bar) {}
         });
         panel.addView(seekBar);
-
-        TextView colorTitle = label("ACCENT COLOR", 12);
-        colorTitle.setTextColor(Color.LTGRAY);
-        panel.addView(colorTitle);
-
-        LinearLayout colors = new LinearLayout(this);
-        int[] palette = {
-                Color.rgb(0, 220, 190),
-                Color.rgb(70, 140, 255),
-                Color.rgb(190, 90, 255),
-                Color.rgb(255, 90, 130),
-                Color.rgb(255, 190, 55),
-                Color.WHITE
-        };
-
-        for (int color : palette) {
-            View swatch = new View(this);
-            swatch.setBackground(shape(color, 20));
-            LinearLayout.LayoutParams colorParams =
-                    new LinearLayout.LayoutParams(0, dp(30), 1);
-            colorParams.setMargins(dp(3), dp(7), dp(3), dp(7));
-            colors.addView(swatch, colorParams);
-            swatch.setOnClickListener(v -> {
-                accent = color;
-                header.setTextColor(accent);
-                seekBar.setProgressTintList(
-                        android.content.res.ColorStateList.valueOf(accent));
-                seekBar.setThumbTintList(
-                        android.content.res.ColorStateList.valueOf(accent));
-            });
-        }
-        panel.addView(colors);
 
         Button close = makeButton("CLOSE ASSISTANT");
         close.setBackground(shape(Color.rgb(145, 42, 55), 12));
@@ -359,15 +360,13 @@ public class AssistantOverlayService extends Service {
         close.setOnClickListener(v -> stopSelf());
 
         params = new WindowManager.LayoutParams(
-                dp(290),
-                WindowManager.LayoutParams.WRAP_CONTENT,
+                dp(280), WindowManager.LayoutParams.WRAP_CONTENT,
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
                         ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                         : WindowManager.LayoutParams.TYPE_PHONE,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT
-        );
+                PixelFormat.TRANSLUCENT);
         params.gravity = Gravity.TOP | Gravity.END;
         params.x = dp(12);
         params.y = dp(100);
@@ -381,11 +380,10 @@ public class AssistantOverlayService extends Service {
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                android.graphics.PixelFormat.TRANSLUCENT
-        );
+                PixelFormat.TRANSLUCENT);
         windowManager.addView(aimGuideView, guideParams);
         windowManager.addView(panel, params);
-
+        showBubble();
     }
 
     @Override
