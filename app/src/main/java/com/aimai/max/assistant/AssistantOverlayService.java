@@ -54,36 +54,30 @@ public class AssistantOverlayService extends Service {
             float y = intent.getFloatExtra("pieceY", 0.8f);
 
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
+            boolean plannedShot = intent.getBooleanExtra("shotFound", false);
             if (targetFound) {
                 float targetX = intent.getFloatExtra("targetPieceX", x);
                 float targetY = intent.getFloatExtra("targetPieceY", y);
-                CarromPhysicsEngine.CollisionPrediction prediction =
-                        CarromPhysicsEngine.predictCollision(
-                                x, y, targetX, targetY);
-
-                if (prediction.valid) {
-                    float strikerRadiusX = intent.getFloatExtra("strikerRadiusX", 0f);
-                    float strikerRadiusY = intent.getFloatExtra("strikerRadiusY", 0f);
-                    float targetRadiusX = intent.getFloatExtra("targetPieceRadiusX", 0f);
-                    float targetRadiusY = intent.getFloatExtra("targetPieceRadiusY", 0f);
-
+                float ghostX = intent.getFloatExtra("ghostX", targetX);
+                float ghostY = intent.getFloatExtra("ghostY", targetY);
+                float pocketX = intent.getFloatExtra("pocketX", targetX);
+                float pocketY = intent.getFloatExtra("pocketY", targetY);
+                if (plannedShot) {
+                    aimGuideView.setGuide(x, y, ghostX, ghostY);
+                    aimGuideView.setShotRoute(ghostX, ghostY, pocketX, pocketY, true);
+                } else {
+                    aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                     float[] contact = CarromPhysicsEngine.calculateCollisionContactXY(
                             x, y, targetX, targetY,
-                            strikerRadiusX, strikerRadiusY,
-                            targetRadiusX, targetRadiusY);
-
-                    if (contact != null) {
-                        aimGuideView.setGuide(
-                                x, y,
-                                Math.max(0f, Math.min(1f, contact[0])),
-                                Math.max(0f, Math.min(1f, contact[1])));
-                    } else {
-                        aimGuideView.setGuide(x, y, targetX, targetY);
-                    }
-                } else {
-                    aimGuideView.setGuide(x, y, targetX, targetY);
+                            intent.getFloatExtra("strikerRadiusX", 0f),
+                            intent.getFloatExtra("strikerRadiusY", 0f),
+                            intent.getFloatExtra("targetPieceRadiusX", 0f),
+                            intent.getFloatExtra("targetPieceRadiusY", 0f));
+                    if (contact != null) aimGuideView.setGuide(x, y, contact[0], contact[1]);
+                    else aimGuideView.setGuide(x, y, targetX, targetY);
                 }
             } else {
+                aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                 aimGuideView.setGuide(x, y, x, Math.max(0.05f, y - 0.25f));
             }
 
@@ -413,6 +407,11 @@ public class AssistantOverlayService extends Service {
             } catch (IllegalArgumentException ignored) {
             }
             pieceReceiverRegistered = false;
+        }
+
+        if (bubble != null && windowManager != null) {
+            try { windowManager.removeView(bubble); } catch (IllegalArgumentException ignored) {}
+            bubble = null;
         }
 
         if (panel != null && windowManager != null) {
