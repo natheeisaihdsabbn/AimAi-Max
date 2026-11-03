@@ -13,41 +13,42 @@ import android.widget.TextView;
 
 public class LicenseActivity extends Activity {
     private EditText input;
-    private Button btn;
+    private Button button;
     private TextView status;
 
-    private int dp(int v) {
-        return (int) (v * getResources().getDisplayMetrics().density);
+    private int dp(int value) {
+        return (int) (value * getResources().getDisplayMetrics().density);
     }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        int bg = Color.parseColor("#0B0F14");
-        int gold = Color.parseColor("#D4AF37");
-        getWindow().setStatusBarColor(bg);
-        getWindow().setNavigationBarColor(bg);
+        int background = Color.rgb(10, 13, 19);
+        int accent = Color.rgb(0, 214, 190);
+        getWindow().setStatusBarColor(background);
+        getWindow().setNavigationBarColor(background);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setBackgroundColor(bg);
+        root.setBackgroundColor(background);
         root.setPadding(dp(24), dp(24), dp(24), dp(24));
 
         TextView title = new TextView(this);
         title.setText("AimAi Max");
-        title.setTextSize(28);
-        title.setTextColor(gold);
+        title.setTextSize(29);
+        title.setTextColor(accent);
         title.setGravity(Gravity.CENTER);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
 
-        TextView sub = new TextView(this);
-        sub.setText("লাইসেন্স কী দিন");
-        sub.setTextSize(16);
-        sub.setTextColor(Color.LTGRAY);
-        sub.setGravity(Gravity.CENTER);
-        sub.setPadding(0, dp(8), 0, dp(20));
-        root.addView(sub);
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Enter your license key to continue");
+        subtitle.setTextSize(15);
+        subtitle.setTextColor(Color.LTGRAY);
+        subtitle.setGravity(Gravity.CENTER);
+        subtitle.setPadding(0, dp(10), 0, dp(24));
+        root.addView(subtitle);
 
         input = new EditText(this);
         input.setHint("AIK-XXXX-XXXX-XXXX-XXXX");
@@ -57,50 +58,48 @@ public class LicenseActivity extends Activity {
         input.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        root.addView(input, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        root.addView(input, new LinearLayout.LayoutParams(-1, -2));
 
-        btn = new Button(this);
-        btn.setText("সক্রিয় করুন");
-        root.addView(btn, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        button = new Button(this);
+        button.setText("Activate");
+        button.setAllCaps(false);
+        root.addView(button, new LinearLayout.LayoutParams(-1, -2));
 
         status = new TextView(this);
-        status.setTextSize(15);
-        status.setTextColor(Color.parseColor("#FF6B6B"));
+        status.setTextSize(14);
+        status.setTextColor(Color.rgb(255, 107, 107));
         status.setGravity(Gravity.CENTER);
         status.setPadding(0, dp(16), 0, 0);
         root.addView(status);
 
-        String msg = getIntent().getStringExtra("msg");
-        if (msg != null) status.setText(msg);
-
-        btn.setOnClickListener(v -> activate());
+        String message = getIntent().getStringExtra("msg");
+        if (message != null) status.setText(message);
+        button.setOnClickListener(v -> activate());
         setContentView(root);
     }
 
     private void activate() {
         String key = input.getText().toString().trim();
         if (key.isEmpty()) {
-            status.setTextColor(Color.parseColor("#FF6B6B"));
-            status.setText("লাইসেন্স কী লিখুন");
+            status.setTextColor(Color.rgb(255, 107, 107));
+            status.setText("Please enter your license key.");
             return;
         }
-        btn.setEnabled(false);
+        button.setEnabled(false);
         status.setTextColor(Color.LTGRAY);
-        status.setText("যাচাই হচ্ছে...");
-        LicenseManager.verify(this, key, r -> {
+        status.setText("Verifying license...");
+        LicenseManager.verify(this, key, result -> {
             if (isFinishing()) return;
-            btn.setEnabled(true);
-            if (r == LicenseManager.Result.OK) {
+            button.setEnabled(true);
+            if (result == LicenseManager.Result.OK) {
                 startActivity(new Intent(this, MainActivity.class));
                 finish();
                 return;
             }
-            status.setTextColor(Color.parseColor("#FF6B6B"));
-            if (r == LicenseManager.Result.INVALID) status.setText(LicenseManager.MSG_INVALID);
-            else if (r == LicenseManager.Result.OTHER_DEVICE) status.setText(LicenseManager.MSG_OTHER_DEVICE);
-            else status.setText(LicenseManager.MSG_OFFLINE);
+            status.setTextColor(Color.rgb(255, 107, 107));
+            if (result == LicenseManager.Result.INVALID) status.setText("This license key is invalid or inactive.");
+            else if (result == LicenseManager.Result.OTHER_DEVICE) status.setText("This license key is already registered to another device.");
+            else status.setText("Unable to reach the license server. Check your connection and try again.");
         });
     }
 }
