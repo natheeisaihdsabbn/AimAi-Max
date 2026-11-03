@@ -19,6 +19,18 @@ public class AimGuideView extends View {
     private boolean guideEnabled = true;
     private String guideStyle = "FOCUS";
 
+    private float ghostX = -1f, ghostY = -1f, pocketX = -1f, pocketY = -1f;
+    private boolean shotRouteEnabled = false;
+
+    public void setShotRoute(float gx, float gy, float px, float py, boolean enabled) {
+        ghostX = clamp(gx);
+        ghostY = clamp(gy);
+        pocketX = clamp(px);
+        pocketY = clamp(py);
+        shotRouteEnabled = enabled;
+        invalidate();
+    }
+
     public AimGuideView(Context context) {
         super(context);
         setLayerType(View.LAYER_TYPE_HARDWARE, null);
@@ -94,6 +106,17 @@ public class AimGuideView extends View {
                 new float[]{18f, 10f}, 0f));
         }
         canvas.drawLine(sx, sy, ex, ey, paint);
+        if (shotRouteEnabled) {
+            paint.setPathEffect(new android.graphics.DashPathEffect(new float[]{10f, 8f}, 0f));
+            paint.setColor(Color.YELLOW);
+            canvas.drawLine(ex, ey, ghostX * getWidth(), ghostY * getHeight(), paint);
+            paint.setPathEffect(null);
+            paint.setColor(Color.GREEN);
+            canvas.drawLine(ghostX * getWidth(), ghostY * getHeight(),
+                    pocketX * getWidth(), pocketY * getHeight(), paint);
+            paint.setColor(Color.YELLOW);
+            canvas.drawCircle(pocketX * getWidth(), pocketY * getHeight(), thickness * 4f, paint);
+        }
         paint.setPathEffect(null);
         paint.setShader(null);
         paint.clearShadowLayer();
