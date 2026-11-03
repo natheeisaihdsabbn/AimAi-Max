@@ -40,13 +40,16 @@ public class AssistantOverlayService extends Service {
     private boolean boardReceiverRegistered = false;
 
     private boolean pieceReceiverRegistered = false;
+    private boolean gameReceiverRegistered = false;
+    private boolean gameForeground = false;
+    private boolean waitingForSettle = false;
 
     private final android.content.BroadcastReceiver pieceReceiver =
             new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context,
                               android.content.Intent intent) {
-            if (aimGuideView == null || !enabled) return;
+            if (aimGuideView == null || !enabled || !gameForeground) return;
 
             if (!intent.getBooleanExtra("isStriker", false)) {
     aimGuideView.setGuideEnabled(false);
@@ -58,16 +61,25 @@ public class AssistantOverlayService extends Service {
 
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
-            if (autoPlay && targetFound && plannedShot
-                    && android.os.SystemClock.elapsedRealtime() - lastAutoShotAt > 2200
-                    && AimAiGestureService.isConnected()) {
+            boolean boardStable = intent.getBooleanExtra("boardStable", false);
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (waitingForSettle && boardStable && now - lastAutoShotAt >= 2500L) {
+                waitingForSettle = false;
+                lastAutoStrikerX = -1f;
+                lastAutoStrikerY = -1f;
+                android.util.Log.i("AimAiAutoPlay", "Board settled; next shot unlocked");
+            }
+            if (autoPlay && gameForeground && !waitingForSettle && boardStable && targetFound && plannedShot
+                    && now - lastAutoShotAt > 2200
+                    && AimAiGestureService.isConnected() && AimAiGestureService.isGameForeground()) {
                 float gx = intent.getFloatExtra("ghostX", x);
                 float gy = intent.getFloatExtra("ghostY", y);
                 if (Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f
                         || lastAutoShotAt == 0L) {
                     int sw = getResources().getDisplayMetrics().widthPixels;
                     int sh = getResources().getDisplayMetrics().heightPixels;
-                    if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh)) {
+                    if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh, intent.getFloatExtra("shotPower", 0.5f))) {
+                        waitingForSettle = true;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
                         lastAutoStrikerX = x;
                         lastAutoStrikerY = y;
@@ -101,7 +113,7 @@ public class AssistantOverlayService extends Service {
             }
 
 
-            aimGuideView.setGuideEnabled(true);
+            aimGuideView.setGuideEnabled(gameForeground);
         }
     };
 
@@ -114,7 +126,7 @@ public class AssistantOverlayService extends Service {
             if (aimGuideView == null) return;
 
             boolean found = intent.getBooleanExtra("found", false);
-            if (!found) {
+            if (!found || !gameForeground) {
                 aimGuideView.setGuideEnabled(false);
                 return;
             }
@@ -231,16 +243,41 @@ public class AssistantOverlayService extends Service {
         }
         pieceReceiverRegistered = true;
 
+        android.content.IntentFilter gameFilter = new android.content.IntentFilter("com.aimai.max.GAME_FOREGROUND");
+        if (Build.VERSION.SDK_INT >= 33) registerReceiver(gameStateReceiver, gameFilter, android.content.Context.RECEIVER_NOT_EXPORTED);
+        else registerReceiver(gameStateReceiver, gameFilter);
+        gameReceiverRegistered = true;
+        gameForeground = AimAiGestureService.isGameForeground() && prefs.getBoolean("game_foreground", false);
+        applyGameVisibility();
     }
 
     private TextView bubble;
+    private final android.content.BroadcastReceiver gameStateReceiver = new android.content.BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context context, Intent intent) {
+            gameForeground = intent.getBooleanExtra("foreground", false);
+            waitingForSettle = false;
+            lastAutoShotAt = 0L;
+            applyGameVisibility();
+            android.util.Log.i("AimAiAutoPlay", "Overlay foreground gate=" + gameForeground);
+        }
+    };
+    private void applyGameVisibility() {
+        if (bubble != null) bubble.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
+        if (panel != null && !gameForeground) panel.setVisibility(View.GONE);
+        if (aimGuideView != null) {
+            aimGuideView.setGuideEnabled(false);
+            aimGuideView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
+        }
+    }
 
     private void showPanel() {
+        if (!gameForeground) return;
         if (bubble != null) bubble.setVisibility(View.GONE);
         if (panel != null) panel.setVisibility(View.VISIBLE);
     }
 
     private void showBubble() {
+        if (!gameForeground) return;
         if (panel != null) panel.setVisibility(View.GONE);
         if (bubble != null) bubble.setVisibility(View.VISIBLE);
     }
@@ -450,6 +487,10 @@ public class AssistantOverlayService extends Service {
             pieceReceiverRegistered = false;
         }
 
+        if (gameReceiverRegistered) {
+            try { unregisterReceiver(gameStateReceiver); } catch (IllegalArgumentException ignored) {}
+            gameReceiverRegistered = false;
+        }
         if (bubble != null && windowManager != null) {
             try { windowManager.removeView(bubble); } catch (IllegalArgumentException ignored) {}
             bubble = null;
