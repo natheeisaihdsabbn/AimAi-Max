@@ -1,273 +1,238 @@
 package com.aimai.max;
 
 import android.app.Activity;
-import com.aimai.max.assistant.ScreenCaptureService;
-import android.media.projection.MediaProjectionManager;
-import android.Manifest;
-import android.content.pm.PackageManager;
 import android.content.Intent;
-import android.app.AlertDialog;
-import android.os.Bundle;
-import android.os.Build;
-import android.provider.Settings;
-import android.net.Uri;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.*;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.aimai.max.assistant.AssistantOverlayService;
+import com.aimai.max.assistant.ScreenCaptureService;
+import com.aimai.max.ui.FeatureScreens;
 
 public class MainActivity extends Activity {
     private static final int SCREEN_CAPTURE_REQUEST = 2002;
-    int bg = Color.rgb(12, 14, 20);
-    int panel = Color.rgb(25, 29, 39);
-    int gold = Color.rgb(225, 181, 75);
+    private final int background = Color.rgb(10, 13, 19);
+    private final int surface = Color.rgb(23, 29, 39);
+    private final int accent = Color.rgb(0, 214, 190);
+    private FrameLayout screenHost;
+    private View homePage;
 
-    LinearLayout root;
-
-    TextView text(String value, int size, int color) {
-        TextView t = new TextView(this);
-        t.setText(value);
-        t.setTextSize(size);
-        t.setTextColor(color);
-        t.setGravity(Gravity.CENTER_VERTICAL);
-        return t;
+    private int dp(float value) {
+        return (int) (value * getResources().getDisplayMetrics().density);
     }
 
-    Button button(String label) {
-        Button b = new Button(this);
-        b.setText(label);
-        b.setTextColor(Color.WHITE);
-        b.setAllCaps(false);
-        b.setBackgroundTintList(android.content.res.ColorStateList.valueOf(panel));
-        return b;
+    private TextView label(String value, int size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        if (bold) view.setTypeface(null, Typeface.BOLD);
+        return view;
     }
 
-    void section(String title) {
-        TextView t = text(title, 19, Color.WHITE);
-        t.setTypeface(null, Typeface.BOLD);
-        t.setPadding(4, 20, 4, 10);
-        root.addView(t);
+    private android.graphics.drawable.GradientDrawable rounded(int color, int radius) {
+        android.graphics.drawable.GradientDrawable shape =
+                new android.graphics.drawable.GradientDrawable();
+        shape.setColor(color);
+        shape.setCornerRadius(dp(radius));
+        return shape;
     }
 
-    void openMessage(String message) {
-        new AlertDialog.Builder(this)
-            .setTitle("AimAi Max")
-            .setMessage(message)
-            .setPositiveButton("OK", null)
-            .show();
+    private LinearLayout.LayoutParams params(int width, int height) {
+        return new LinearLayout.LayoutParams(width < 0 ? width : dp(width),
+                height < 0 ? height : dp(height));
     }
 
+    private void showPage(String page) {
+        screenHost.removeAllViews();
+        View content = "Home".equals(page) ? homePage : FeatureScreens.create(this, page);
+        screenHost.addView(content, new FrameLayout.LayoutParams(-1, -1));
+    }
 
-    private void requestScreenCapturePermission() {
+    private void openAssistant() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Intent permission = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName()));
+            startActivity(permission);
+            Toast.makeText(this, "Allow display over other apps, then tap Launch again.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        Intent overlay = new Intent(this, AssistantOverlayService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(overlay);
+        else startService(overlay);
         MediaProjectionManager manager =
                 (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-        startActivityForResult(
-                manager.createScreenCaptureIntent(),
-                SCREEN_CAPTURE_REQUEST
-        );
+        startActivityForResult(manager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST);
+    }
+
+    @Override
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        if (!LicenseManager.hasValidLocalLicense(this)) {
+            startActivity(new Intent(this, LicenseActivity.class));
+            finish();
+            return;
+        }
+        LicenseManager.startPeriodicCheck(this);
+        if (Build.VERSION.SDK_INT >= 33 &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
+        getWindow().setStatusBarColor(background);
+        getWindow().setNavigationBarColor(background);
+        getWindow().getDecorView().setSystemUiVisibility(0);
+
+        LinearLayout app = new LinearLayout(this);
+        app.setOrientation(LinearLayout.VERTICAL);
+        app.setBackgroundColor(background);
+        screenHost = new FrameLayout(this);
+        app.addView(screenHost, new LinearLayout.LayoutParams(-1, 0, 1f));
+        homePage = buildHome();
+        showPage("Home");
+
+        LinearLayout nav = new LinearLayout(this);
+        nav.setGravity(Gravity.CENTER);
+        nav.setBackgroundColor(Color.rgb(17, 22, 30));
+        String[] pages = {"Home", "Shop", "Settings"};
+        String[] icons = {"⌂", "◇", "⚙"};
+        for (int i = 0; i < pages.length; i++) {
+            final String page = pages[i];
+            LinearLayout item = new LinearLayout(this);
+            item.setOrientation(LinearLayout.VERTICAL);
+            item.setGravity(Gravity.CENTER);
+            TextView icon = label(icons[i], 20, accent, true);
+            icon.setGravity(Gravity.CENTER);
+            TextView name = label(page, 11, Color.WHITE, false);
+            name.setGravity(Gravity.CENTER);
+            item.addView(icon);
+            item.addView(name);
+            item.setPadding(0, dp(9), 0, dp(8));
+            item.setOnClickListener(v -> showPage(page));
+            nav.addView(item, new LinearLayout.LayoutParams(0, -2, 1f));
+        }
+        app.addView(nav);
+        setContentView(app);
+    }
+
+    private View buildHome() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(22), dp(20), dp(22), dp(28));
+        scroll.addView(content);
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.aimai_logo);
+        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        header.addView(logo, params(54, 54));
+        LinearLayout brand = new LinearLayout(this);
+        brand.setOrientation(LinearLayout.VERTICAL);
+        brand.setPadding(dp(12), 0, 0, 0);
+        brand.addView(label("AimAi Max", 22, Color.WHITE, true));
+        brand.addView(label("CARROM ASSISTANT", 10, accent, true));
+        header.addView(brand, new LinearLayout.LayoutParams(0, -2, 1f));
+        content.addView(header);
+
+        TextView welcome = label("Ready when you are.", 25, Color.WHITE, true);
+        welcome.setPadding(0, dp(30), 0, dp(5));
+        content.addView(welcome);
+        TextView subtitle = label("Your in-game visual assistant.", 14, Color.LTGRAY, false);
+        content.addView(subtitle);
+
+        LinearLayout gameCard = new LinearLayout(this);
+        gameCard.setOrientation(LinearLayout.VERTICAL);
+        gameCard.setPadding(dp(18), dp(18), dp(18), dp(18));
+        gameCard.setBackground(rounded(surface, 20));
+        LinearLayout.LayoutParams cardParams = params(-1, -2);
+        cardParams.topMargin = dp(26);
+        content.addView(gameCard, cardParams);
+
+        TextView tag = label("SUPPORTED GAME", 10, accent, true);
+        gameCard.addView(tag);
+        TextView gameName = label("Carrom Disc Pool", 22, Color.WHITE, true);
+        gameName.setPadding(0, dp(8), 0, dp(4));
+        gameCard.addView(gameName);
+        gameCard.addView(label("Live board analysis and user-controlled shot guidance.",
+                13, Color.LTGRAY, false));
+
+        Button launch = new Button(this);
+        launch.setText("Launch Assistant");
+        launch.setAllCaps(false);
+        launch.setTextColor(Color.rgb(5, 18, 20));
+        launch.setTypeface(null, Typeface.BOLD);
+        launch.setBackground(rounded(accent, 14));
+        LinearLayout.LayoutParams launchParams = params(-1, 52);
+        launchParams.topMargin = dp(20);
+        gameCard.addView(launch, launchParams);
+        launch.setOnClickListener(v -> openAssistant());
+
+        LinearLayout note = new LinearLayout(this);
+        note.setOrientation(LinearLayout.VERTICAL);
+        note.setPadding(dp(16), dp(15), dp(16), dp(15));
+        note.setBackground(rounded(Color.rgb(18, 35, 39), 16));
+        LinearLayout.LayoutParams noteParams = params(-1, -2);
+        noteParams.topMargin = dp(16);
+        content.addView(note, noteParams);
+        note.addView(label("HOW IT WORKS", 11, accent, true));
+        TextView instructions = label("1. Launch the assistant.\n2. Allow screen capture.\n3. Open Carrom Disc Pool and use the floating guide.",
+                13, Color.LTGRAY, false);
+        instructions.setLineSpacing(dp(5), 1f);
+        instructions.setPadding(0, dp(8), 0, 0);
+        note.addView(instructions);
+
+        return scroll;
     }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == SCREEN_CAPTURE_REQUEST) {
-            if (resultCode == RESULT_OK && data != null) {
-                Intent captureIntent = new Intent(this, ScreenCaptureService.class);
-                captureIntent.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode);
-                captureIntent.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(captureIntent);
-                } else {
-                    startService(captureIntent);
-                }
-
-                Intent gameIntent = getPackageManager()
-                        .getLaunchIntentForPackage("com.miniclip.carrom");
-                if (gameIntent != null) {
-                    gameIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(gameIntent);
-                } else {
-                    openMessage("Carrom Disc Pool was not found. Please install the game first.");
-                }
-            } else {
-                Toast.makeText(this, "Screen capture permission was denied.",
-                        Toast.LENGTH_LONG).show();
-            }
+        if (requestCode != SCREEN_CAPTURE_REQUEST) return;
+        if (resultCode != RESULT_OK || data == null) {
+            Toast.makeText(this, "Screen capture permission was not granted.",
+                    Toast.LENGTH_LONG).show();
+            return;
         }
-    }
+        Intent capture = new Intent(this, ScreenCaptureService.class);
+        capture.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode);
+        capture.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(capture);
+        else startService(capture);
 
-    private void applyKeepScreenAwake() {
-        boolean enabled = getSharedPreferences("aimai_settings", MODE_PRIVATE)
-                .getBoolean("keep_screen_awake", false);
-        if (enabled) {
-            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        Intent game = getPackageManager().getLaunchIntentForPackage("com.miniclip.carrom");
+        if (game != null) {
+            game.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(game);
         } else {
-            getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            Toast.makeText(this, "Carrom Disc Pool was not found. Please install it first.",
+                    Toast.LENGTH_LONG).show();
         }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        applyKeepScreenAwake();
-    }
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        if (Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(
-                    new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
-        }
-        if (!LicenseManager.hasValidLocalLicense(this)) {
-            startActivity(new android.content.Intent(this, LicenseActivity.class));
-            finish();
-            return;
-        }
-        LicenseManager.startPeriodicCheck(this);
-        getWindow().setStatusBarColor(bg);
-        getWindow().setNavigationBarColor(bg);
-
-        ScrollView scroll = new ScrollView(this);
-        root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(18, 20, 18, 24);
-        root.setBackgroundColor(bg);
-        scroll.addView(root);
-
-        ImageView logo = new ImageView(this);
-        logo.setImageResource(R.drawable.aimai_logo);
-        logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(150, 110);
-        lp.gravity = Gravity.CENTER;
-        logo.setLayoutParams(lp);
-        root.addView(logo);
-
-        TextView heading = text("AimAi Max", 28, gold);
-        heading.setGravity(Gravity.CENTER);
-        heading.setTypeface(null, Typeface.BOLD);
-        root.addView(heading);
-
-        TextView subtitle = text("Think ahead. Finish faster.", 14, Color.LTGRAY);
-        subtitle.setGravity(Gravity.CENTER);
-        root.addView(subtitle);
-
-        section("GAMES");
-
-        LinearLayout game = new LinearLayout(this);
-        game.setOrientation(LinearLayout.VERTICAL);
-        game.setPadding(16, 18, 16, 18);
-        game.setBackgroundTintList(null);
-        game.setBackgroundColor(panel);
-
-        game.addView(text("CARROM DISC POOL", 20, Color.WHITE));
-        game.addView(text("Carrom Assistant", 14, Color.LTGRAY));
-
-        Button launch = button("Launch");
-        launch.setOnClickListener(v -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                    && !Settings.canDrawOverlays(this)) {
-                Intent permissionIntent = new Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:" + getPackageName())
-                );
-                startActivity(permissionIntent);
-                openMessage("Allow AimAi Max to display over other apps, then tap Launch again.");
-                return;
-            }
-
-            Intent assistantIntent = new Intent(
-                this,
-                com.aimai.max.assistant.AssistantOverlayService.class
-            );
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(assistantIntent);
-            } else {
-                startService(assistantIntent);
-            }
-
-            requestScreenCapturePermission();
-
-
-        });
-        game.addView(launch);
-        root.addView(game);
-
-        section("ASSISTANT");
-        String[] features = {
-            "DRAWINGS", "VISIBLE SEARCH", "AUTOMATION",
-            "FAST / HUMAN MODE", "AUTO QUEUE"
-        };
-
-        for (String feature : features) {
-            Button b = button(feature);
-            b.setOnClickListener(v ->
-                openMessage(feature + " settings will be added in the next development step.")
-            );
-            root.addView(b);
-        }
-
-        section("MENU");
-        String[] menu = {"HOME", "FRIENDS", "EQUIPMENT", "EVENTS", "SHOP", "SETTINGS"};
-        for (String item : menu) {
-            Button b = button(item);
-            b.setOnClickListener(v ->
-                openMessage(item + " screen is planned for the next step.")
-            );
-            root.addView(b);
-        }
-
-        android.widget.LinearLayout appContainer =
-                new android.widget.LinearLayout(this);
-        appContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
-
-        android.widget.FrameLayout screenHost =
-                new android.widget.FrameLayout(this);
-
-        android.widget.LinearLayout.LayoutParams contentParams =
-                new android.widget.LinearLayout.LayoutParams(
-                        -1, 0, 1f);
-
-        appContainer.addView(screenHost, contentParams);
-        screenHost.addView(scroll);
-
-        android.widget.LinearLayout navigation =
-                new android.widget.LinearLayout(this);
-        navigation.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-        navigation.setBackgroundColor(Color.rgb(20, 24, 36));
-
-        String[] screens = {
-                "Home", "Friends", "Equipment", "Events", "Shop", "Settings"
-        };
-
-        for (String screen : screens) {
-            android.widget.TextView button = new android.widget.TextView(this);
-            button.setText(screen);
-            button.setTextColor(Color.WHITE);
-            button.setTextSize(10);
-            button.setGravity(android.view.Gravity.CENTER);
-            button.setPadding(3, 16, 3, 16);
-            button.setOnClickListener(v -> {
-                screenHost.removeAllViews();
-                View page = screen.equals("Home")
-                        ? scroll
-                        : com.aimai.max.ui.FeatureScreens.create(this, screen);
-                screenHost.addView(page);
-            });
-
-            navigation.addView(button,
-                    new android.widget.LinearLayout.LayoutParams(
-                            0, -2, 1f));
-        }
-
-        appContainer.addView(navigation);
-        setContentView(appContainer);
+        boolean keepAwake = getSharedPreferences("aimai_settings", MODE_PRIVATE)
+                .getBoolean("keep_screen_awake", false);
+        if (keepAwake) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 }
