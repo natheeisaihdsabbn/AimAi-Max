@@ -323,21 +323,27 @@ public class AssistantOverlayService extends Service {
         });
         addRow(panel, toggle);
 
-        Button autoButton = makeButton("AUTO PLAY: OFF");
-        autoButton.setBackground(shape(Color.rgb(39, 48, 65), 12));
-        autoButton.setOnClickListener(v -> {
-            if (!AimAiGestureService.isConnected()) {
+        Switch autoPlaySwitch = new Switch(this);
+        autoPlaySwitch.setText("AUTO PLAY");
+        autoPlaySwitch.setTextColor(Color.WHITE);
+        autoPlaySwitch.setChecked(autoPlay);
+        autoPlaySwitch.setPadding(dp(4), 0, dp(4), 0);
+        autoPlaySwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (checked && !AimAiGestureService.isConnected()) {
+                autoPlaySwitch.setChecked(false);
                 Toast.makeText(this, "Enable AimAi Max Auto Play in Accessibility settings", Toast.LENGTH_LONG).show();
                 startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
                 return;
             }
-            autoPlay = !autoPlay;
-            lastAutoShotAt = 0L;
-            autoButton.setText(autoPlay ? "AUTO PLAY: ON" : "AUTO PLAY: OFF");
-            autoButton.setBackground(shape(autoPlay ? Color.rgb(0, 150, 125) : Color.rgb(39, 48, 65), 12));
+            autoPlay = checked;
+            if (!checked) {
+                lastAutoShotAt = 0L;
+                lastAutoStrikerX = -1f;
+                lastAutoStrikerY = -1f;
+            }
         });
-        addRow(panel, autoButton);
+        addRow(panel, autoPlaySwitch);
 
         TextView styleTitle = label("GUIDE STYLE", 12);
         styleTitle.setTextColor(accent);
