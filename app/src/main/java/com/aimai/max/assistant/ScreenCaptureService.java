@@ -107,40 +107,34 @@ public class ScreenCaptureService extends Service {
                             guideIntent.putExtra("gutiCount", coinCount);
 
                             CarromBoardAnalyzer.Piece firstPiece = result.striker;
-                            if (firstPiece == null && !result.pieces.isEmpty()) {
-                                firstPiece = result.pieces.get(0);
-                            }
-                            if (firstPiece != null) {
+                            if (firstPiece != null && result.board.detected) {
+                                CarromShotPlanner.Shot shot = CarromShotPlanner.plan(
+                                        result, null);
+                                guideIntent.putExtra("isStriker", true);
                                 guideIntent.putExtra("pieceX", firstPiece.x / frameW);
                                 guideIntent.putExtra("pieceY", firstPiece.y / frameH);
-                                guideIntent.putExtra("isStriker", firstPiece == result.striker);
                                 guideIntent.putExtra("strikerRadius", firstPiece.radius / frameW);
                                 guideIntent.putExtra("strikerRadiusX", firstPiece.radius / frameW);
                                 guideIntent.putExtra("strikerRadiusY", firstPiece.radius / frameH);
-
-                                CarromBoardAnalyzer.Piece targetPiece = null;
-                                float nearestDistance = Float.MAX_VALUE;
-                                for (CarromBoardAnalyzer.Piece candidate : result.pieces) {
-                                    if (candidate == firstPiece) continue;
-                                    float dx = (candidate.x - firstPiece.x) / frameW;
-                                    float dy = (candidate.y - firstPiece.y) / frameH;
-                                    float distance = dx * dx + dy * dy;
-                                    if (distance > 0.0004f && distance < nearestDistance) {
-                                        nearestDistance = distance;
-                                        targetPiece = candidate;
-                                    }
-                                }
-
-                                if (targetPiece != null) {
-                                    guideIntent.putExtra("targetPieceX", targetPiece.x / frameW);
-                                    guideIntent.putExtra("targetPieceY", targetPiece.y / frameH);
-                                    guideIntent.putExtra("targetPieceRadius", targetPiece.radius / frameW);
-                                    guideIntent.putExtra("targetPieceRadiusX", targetPiece.radius / frameW);
-                                    guideIntent.putExtra("targetPieceRadiusY", targetPiece.radius / frameH);
+                                guideIntent.putExtra("shotFound", shot.valid);
+                                if (shot.valid) {
+                                    guideIntent.putExtra("targetPieceX", shot.target.x / frameW);
+                                    guideIntent.putExtra("targetPieceY", shot.target.y / frameH);
+                                    guideIntent.putExtra("targetPieceRadiusX", shot.target.radius / frameW);
+                                    guideIntent.putExtra("targetPieceRadiusY", shot.target.radius / frameH);
+                                    guideIntent.putExtra("ghostX", shot.ghostX / frameW);
+                                    guideIntent.putExtra("ghostY", shot.ghostY / frameH);
+                                    guideIntent.putExtra("pocketX", shot.pocket.x / frameW);
+                                    guideIntent.putExtra("pocketY", shot.pocket.y / frameH);
+                                    guideIntent.putExtra("cutAngle", shot.cutAngleDeg);
                                     guideIntent.putExtra("targetFound", true);
                                 } else {
                                     guideIntent.putExtra("targetFound", false);
                                 }
+                            } else {
+                                guideIntent.putExtra("isStriker", false);
+                                guideIntent.putExtra("targetFound", false);
+                                guideIntent.putExtra("shotFound", false);
                             }
                             sendBroadcast(guideIntent);
 
