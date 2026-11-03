@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">AimAi Max</string>
+    <string name="accessibility_service_description">Allows AimAi Max to perform the selected carrom shot when Auto Play is enabled.</string>
 </resources>
