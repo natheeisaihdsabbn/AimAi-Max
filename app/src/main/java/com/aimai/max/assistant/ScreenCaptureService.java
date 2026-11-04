@@ -26,11 +26,24 @@ public class ScreenCaptureService extends Service {
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
     private long lastAnalysisTime = 0L;
+    public static final String ACTION_SCAN_NOW = "com.aimai.max.ACTION_SCAN_NOW";
+    private android.content.BroadcastReceiver scanReceiver;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         createNotification();
         startForeground(2001, buildNotification());
+
+        if (scanReceiver == null) {
+            scanReceiver = new android.content.BroadcastReceiver() {
+                @Override public void onReceive(Context context, Intent scanIntent) {
+                    lastAnalysisTime = 0L;
+                }
+            };
+            android.content.IntentFilter filter = new android.content.IntentFilter(ACTION_SCAN_NOW);
+            if (Build.VERSION.SDK_INT >= 33) registerReceiver(scanReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+            else registerReceiver(scanReceiver, filter);
+        }
 
         if (intent == null) {
             stopSelf();
@@ -249,6 +262,10 @@ public class ScreenCaptureService extends Service {
 
     @Override
     public void onDestroy() {
+        if (scanReceiver != null) {
+            try { unregisterReceiver(scanReceiver); } catch (IllegalArgumentException ignored) {}
+            scanReceiver = null;
+        }
         stopCapture();
         super.onDestroy();
     }
