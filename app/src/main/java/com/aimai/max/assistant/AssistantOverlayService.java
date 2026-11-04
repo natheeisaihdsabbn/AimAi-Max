@@ -248,7 +248,7 @@ public class AssistantOverlayService extends Service {
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.HORIZONTAL);
-        panel.addView(body);
+        panel.addView(body, new LinearLayout.LayoutParams(-1, dp(250)));
 
         LinearLayout sidebar = new LinearLayout(this);
         sidebar.setOrientation(LinearLayout.VERTICAL);
@@ -266,7 +266,6 @@ public class AssistantOverlayService extends Service {
 
         String[] categories = {"Drawings", "Automation", "Skins", "System"};
         String[] icons = {"✧", "◉", "◈", "⚙"};
-        Runnable[] render = new Runnable[1];
 
         java.util.function.Consumer<String> showCategory = category -> {
             content.removeAllViews();
@@ -437,7 +436,7 @@ public class AssistantOverlayService extends Service {
             bubble = null;
         }
         if (panel != null && windowManager != null) {
-            windowManager.removeView(panel);
+            try { windowManager.removeView(panel); } catch (IllegalArgumentException ignored) {}
             panel = null;
         }
 
