@@ -21,7 +21,7 @@ import java.security.MessageDigest;
 import java.util.List;
 
 public final class LicenseManager {
-    // অ্যাপের গোপন salt। একবার বসানোর পর বদলাবে না, বদলালে সব ফোনের হ্যাশ অকেজো হবে।
+    // Keep this salt unchanged: changing it would invalidate every stored device hash.
     private static final String SALT = "6beab047bbc97ec8512183932e6ab5ab";
 
     private static final long GRACE_MS = 48L * 60 * 60 * 1000;
@@ -30,10 +30,10 @@ public final class LicenseManager {
     private static final String K_KEY = "key";
     private static final String K_LAST = "last_verified";
 
-    public static final String MSG_INVALID = "কী ভুল বা বাতিল";
-    public static final String MSG_OTHER_DEVICE = "এই কী অন্য ফোনে ব্যবহৃত হচ্ছে";
-    public static final String MSG_OFFLINE = "ইন্টারনেট সংযোগ নেই বা সার্ভারে পৌঁছানো যাচ্ছে না। আবার চেষ্টা করুন।";
-    public static final String MSG_EXPIRED = "অনেকক্ষণ যাচাই করা হয়নি। ইন্টারনেট চালু করে আবার লাইসেন্স দিন।";
+    public static final String MSG_INVALID = "This license key is invalid or inactive.";
+    public static final String MSG_OTHER_DEVICE = "This license key is already in use on another device.";
+    public static final String MSG_OFFLINE = "No internet connection or the server is unavailable. Please try again.";
+    public static final String MSG_EXPIRED = "The license could not be verified recently. Connect to the internet and verify again.";
 
     public enum Result { OK, INVALID, OTHER_DEVICE, OFFLINE }
 
