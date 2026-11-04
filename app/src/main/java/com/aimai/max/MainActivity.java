@@ -48,25 +48,44 @@ public class MainActivity extends Activity {
                     .setPositiveButton("OK", null).show();
             return;
         }
-        Intent assistant = new Intent(this, AssistantOverlayService.class);
-        if (Build.VERSION.SDK_INT >= 26) startForegroundService(assistant); else startService(assistant);
         MediaProjectionManager manager = (MediaProjectionManager)getSystemService(MEDIA_PROJECTION_SERVICE);
+        if (manager == null) {
+            Toast.makeText(this, "Screen capture is unavailable on this device.", Toast.LENGTH_LONG).show();
+            return;
+        }
         startActivityForResult(manager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST);
     }
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != SCREEN_CAPTURE_REQUEST) return;
         if (resultCode == RESULT_OK && data != null) {
+            // Start assistant services only after the user grants screen-capture access.
+            Intent assistant = new Intent(this, AssistantOverlayService.class);
             Intent capture = new Intent(this, ScreenCaptureService.class);
             capture.putExtra(ScreenCaptureService.EXTRA_RESULT_CODE, resultCode);
             capture.putExtra(ScreenCaptureService.EXTRA_RESULT_DATA, data);
-            if (Build.VERSION.SDK_INT >= 26) startForegroundService(capture); else startService(capture);
+            try {
+                if (Build.VERSION.SDK_INT >= 26) {
+                    startForegroundService(assistant);
+                    startForegroundService(capture);
+                } else {
+                    startService(assistant);
+                    startService(capture);
+                }
+            } catch (RuntimeException e) {
+                stopService(assistant);
+                stopService(capture);
+                Toast.makeText(this, "The assistant could not start. Check the required permissions and try again.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
             Intent game = getPackageManager().getLaunchIntentForPackage("com.miniclip.carrom");
             if (game != null) startActivity(game);
             else new AlertDialog.Builder(this).setMessage(
                     "Carrom Disc Pool was not found. Install the game first.")
                     .setPositiveButton("OK", null).show();
         } else {
+            // No overlay or capture service is started when permission is declined.
             Toast.makeText(this, "Screen capture permission was denied.", Toast.LENGTH_LONG).show();
         }
     }
