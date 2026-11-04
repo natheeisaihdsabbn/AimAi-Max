@@ -56,6 +56,19 @@ public class AssistantOverlayService extends Service {
 
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             if (targetFound) {
+                if (intent.getBooleanExtra("shotFound", false)) {
+                    aimGuideView.setTrajectory(
+                            x, y,
+                            intent.getFloatExtra("ghostX", x),
+                            intent.getFloatExtra("ghostY", y),
+                            intent.getFloatExtra("shotTargetX", x),
+                            intent.getFloatExtra("shotTargetY", y),
+                            intent.getFloatExtra("pocketX", x),
+                            intent.getFloatExtra("pocketY", y));
+                    aimGuideView.setGuideEnabled(true);
+                    return;
+                }
+                aimGuideView.clearTrajectory();
                 float targetX = intent.getFloatExtra("targetPieceX", x);
                 float targetY = intent.getFloatExtra("targetPieceY", y);
                 CarromPhysicsEngine.CollisionPrediction prediction =
