@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - reference-ui-redesign
   workflow_dispatch:
 
 permissions:
