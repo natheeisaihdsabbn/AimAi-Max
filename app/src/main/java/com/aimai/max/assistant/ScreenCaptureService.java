@@ -142,6 +142,20 @@ public class ScreenCaptureService extends Service {
                                     guideIntent.putExtra("targetFound", false);
                                 }
                             }
+                            CarromShotPlanner.Shot planned =
+                                    CarromShotPlanner.plan(result, null);
+                            if (planned.valid && planned.target != null && planned.pocket != null) {
+                                guideIntent.putExtra("shotFound", true);
+                                guideIntent.putExtra("ghostX", planned.ghostX / frameW);
+                                guideIntent.putExtra("ghostY", planned.ghostY / frameH);
+                                guideIntent.putExtra("shotTargetX", planned.target.x / frameW);
+                                guideIntent.putExtra("shotTargetY", planned.target.y / frameH);
+                                guideIntent.putExtra("pocketX", planned.pocket.x / frameW);
+                                guideIntent.putExtra("pocketY", planned.pocket.y / frameH);
+                                guideIntent.putExtra("cutAngleDeg", planned.cutAngleDeg);
+                            } else {
+                                guideIntent.putExtra("shotFound", false);
+                            }
                             sendBroadcast(guideIntent);
 
                             Intent analysisIntent = new Intent("com.aimai.max.BOARD_ANALYSIS");
