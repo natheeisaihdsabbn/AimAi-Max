@@ -27,6 +27,7 @@ public class AssistantOverlayService extends Service {
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
     private LinearLayout panel;
+    private TextView bubble;
     private WindowManager.LayoutParams params;
     private boolean enabled = true;
     private String selectedStyle = "FOCUS";
@@ -385,6 +386,24 @@ public class AssistantOverlayService extends Service {
         );
         windowManager.addView(aimGuideView, guideParams);
         windowManager.addView(panel, params);
+        panel.setVisibility(View.GONE);
+        bubble = label("✦", 22);
+        bubble.setGravity(Gravity.CENTER);
+        bubble.setTextColor(Color.WHITE);
+        bubble.setBackground(shape(accent, 28));
+        WindowManager.LayoutParams bubbleParams = new WindowManager.LayoutParams(
+                dp(50), dp(50),
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                        : WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        bubbleParams.gravity = Gravity.START | Gravity.CENTER_VERTICAL;
+        bubbleParams.x = dp(8);
+        windowManager.addView(bubble, bubbleParams);
+        bubble.setOnClickListener(v -> panel.setVisibility(
+                panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE));
 
     }
 
@@ -417,6 +436,10 @@ public class AssistantOverlayService extends Service {
             pieceReceiverRegistered = false;
         }
 
+        if (bubble != null && windowManager != null) {
+            try { windowManager.removeView(bubble); } catch (IllegalArgumentException ignored) {}
+            bubble = null;
+        }
         if (panel != null && windowManager != null) {
             windowManager.removeView(panel);
             panel = null;
