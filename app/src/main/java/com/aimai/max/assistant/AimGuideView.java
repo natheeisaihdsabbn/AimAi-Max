@@ -18,6 +18,8 @@ public class AimGuideView extends View {
     private int accentColor = Color.CYAN;
     private boolean guideEnabled = true;
     private String guideStyle = "FOCUS";
+    private boolean trajectoryEnabled;
+    private float ghostX, ghostY, targetX, targetY, pocketX, pocketY;
 
     public AimGuideView(Context context) {
         super(context);
@@ -29,6 +31,21 @@ public class AimGuideView extends View {
         startY = clamp(sy);
         endX = clamp(ex);
         endY = clamp(ey);
+        invalidate();
+    }
+
+    public void setTrajectory(float sx, float sy, float gx, float gy,
+                              float tx, float ty, float px, float py) {
+        setGuide(sx, sy, gx, gy);
+        ghostX=clamp(gx); ghostY=clamp(gy);
+        targetX=clamp(tx); targetY=clamp(ty);
+        pocketX=clamp(px); pocketY=clamp(py);
+        trajectoryEnabled=true;
+        invalidate();
+    }
+
+    public void clearTrajectory() {
+        trajectoryEnabled=false;
         invalidate();
     }
 
@@ -94,6 +111,24 @@ public class AimGuideView extends View {
                 new float[]{18f, 10f}, 0f));
         }
         canvas.drawLine(sx, sy, ex, ey, paint);
+        if (trajectoryEnabled) {
+            float gx=ghostX*getWidth(), gy=ghostY*getHeight();
+            float tx=targetX*getWidth(), ty=targetY*getHeight();
+            float px=pocketX*getWidth(), py=pocketY*getHeight();
+            paint.setShader(null);
+            paint.setPathEffect(new android.graphics.DashPathEffect(new float[]{12f,8f},0f));
+            paint.setStrokeWidth(Math.max(1f, thickness*0.75f));
+            canvas.drawLine(gx,gy,tx,ty,paint);
+            canvas.drawLine(tx,ty,px,py,paint);
+            paint.setPathEffect(null);
+            paint.setStyle(Paint.Style.FILL);
+            paint.setColor(Color.YELLOW);
+            canvas.drawCircle(gx,gy,thickness*2f,paint);
+            paint.setColor(Color.GREEN);
+            canvas.drawCircle(px,py,thickness*2.5f,paint);
+            paint.setColor(accentColor);
+            paint.setStyle(Paint.Style.STROKE);
+        }
         paint.setPathEffect(null);
         paint.setShader(null);
         paint.clearShadowLayer();
