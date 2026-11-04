@@ -316,6 +316,15 @@ public class AssistantOverlayService extends Service {
                 note.setTextColor(accent); content.addView(note);
                 TextView description = label("Live aim guidance. You remain in control and confirm every shot.", 11);
                 description.setTextColor(Color.LTGRAY); content.addView(description);
+                Button scanNow = makeButton("PHOTO / SCAN BOARD NOW");
+                scanNow.setOnClickListener(v -> {
+                    Intent scan = new Intent(ScreenCaptureService.ACTION_SCAN_NOW);
+                    scan.setPackage(getPackageName());
+                    sendBroadcast(scan);
+                    Toast.makeText(this, "Scanning the current board...", Toast.LENGTH_SHORT).show();
+                });
+                content.addView(scanNow, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(42)));
                 Switch assist = new Switch(this);
                 assist.setText("Guide enabled"); assist.setTextColor(Color.WHITE);
                 assist.setChecked(enabled);
