@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - aimai-final-redesign
-    paths:
-      - 'app/src/main/java/com/aimai/max/assistant/aimai-fixes.zip'
   workflow_dispatch:
 
 permissions:
