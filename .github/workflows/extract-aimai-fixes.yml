@@ -1,0 +1,82 @@
+name: Extract AimAI Fixes and Build
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - 'app/src/main/java/com/aimai/max/assistant/aimai-fixes.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract-and-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+          fetch-depth: 0
+
+      - name: Validate and extract exactly eight Java files
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP='app/src/main/java/com/aimai/max/assistant/aimai-fixes.zip'
+          if [ ! -f "$ZIP" ]; then
+            echo "Fix archive is absent; nothing to extract."
+            exit 0
+          fi
+
+          TMP="$(mktemp -d)"
+          unzip -q "$ZIP" -d "$TMP"
+
+          declare -A expected=(
+            [AimAiGestureService.java]=assistant
+            [AimGuideView.java]=assistant
+            [AssistantOverlayService.java]=assistant
+            [CarromBoardAnalyzer.java]=assistant
+            [CarromShotPlanner.java]=assistant
+            [ScreenCaptureService.java]=assistant
+            [ScreenMetrics.java]=assistant
+            [FeatureScreens.java]=ui
+          )
+          declare -A found=()
+
+          while IFS= read -r -d '' file; do
+            base="$(basename "$file")"
+            if [[ -n "${expected[$base]+x}" ]]; then
+              if [[ -n "${found[$base]+x}" ]]; then
+                echo "Duplicate archive entry: $base"
+                exit 1
+              fi
+              found[$base]="$file"
+            fi
+          done < <(find "$TMP" -type f -name '*.java' -print0)
+
+          if [ "${#found[@]}" -ne 8 ]; then
+            echo "Expected exactly the eight named Java files; found ${#found[@]}."
+            printf 'Found: %s\n' "${!found[@]}"
+            exit 1
+          fi
+
+          BASE='app/src/main/java/com/aimai/max'
+          mkdir -p "$BASE/assistant" "$BASE/ui"
+          for name in "${!expected[@]}"; do
+            dest="${expected[$name]}"
+            cp "${found[$name]}" "$BASE/$dest/$name"
+          done
+
+          # Guard: these protected files must remain unchanged in this commit.
+          git diff --exit-code --             app/src/main/java/com/aimai/max/MainActivity.java             app/src/main/java/com/aimai/max/LicenseActivity.java             app/src/main/java/com/aimai/max/LicenseManager.java             app/src/main/AndroidManifest.xml
+
+          rm "$ZIP"
+          git status --short
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$BASE/assistant" "$BASE/ui/FeatureScreens.java" "$ZIP"
+          git commit -m "Apply eight AimAI Java fixes and remove archive"
+          git push origin aimai-final-redesign
