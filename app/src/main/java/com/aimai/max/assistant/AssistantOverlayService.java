@@ -24,6 +24,11 @@ import android.widget.Toast;
 
 public class AssistantOverlayService extends Service {
 
+    private static final long MIN_SHOT_GAP_MS = 2200L;
+    private static final long SETTLE_MIN_MS = 2500L;
+    /** If the board never reports a change after a shot, allow a retry after this long. */
+    private static final long SETTLE_TIMEOUT_MS = 15000L;
+
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
     private LinearLayout panel;
@@ -38,54 +43,76 @@ public class AssistantOverlayService extends Service {
     private android.content.SharedPreferences.OnSharedPreferenceChangeListener liveGuidePreferencesListener;
 
     private boolean boardReceiverRegistered = false;
-
     private boolean pieceReceiverRegistered = false;
     private boolean gameReceiverRegistered = false;
     private boolean gameForeground = false;
     private boolean waitingForSettle = false;
+    /** True once the board was seen moving (unstable) after the last shot. */
+    private boolean sawMotionAfterShot = false;
+    private boolean warnedNoAccessibility = false;
 
     private final android.content.BroadcastReceiver pieceReceiver =
             new android.content.BroadcastReceiver() {
         @Override
         public void onReceive(android.content.Context context,
                               android.content.Intent intent) {
-            if (aimGuideView == null || !enabled || !gameForeground) return;
+            // Everything (guide, scanning results, AUTO PLAY) is dead while the game is not in front.
+            if (aimGuideView == null || !enabled || !gameForeground
+                    || !AimAiGestureService.isGameForeground()) {
+                return;
+            }
+
+            boolean boardStable = intent.getBooleanExtra("boardStable", false);
+            long now = android.os.SystemClock.elapsedRealtime();
+
+            // Track the shot cycle: shot -> pieces move -> pieces stop -> scan again -> next shot.
+            if (waitingForSettle) {
+                if (!boardStable) sawMotionAfterShot = true;
+                boolean settled = boardStable && now - lastAutoShotAt >= SETTLE_MIN_MS
+                        && (sawMotionAfterShot || now - lastAutoShotAt >= SETTLE_TIMEOUT_MS);
+                if (settled) {
+                    waitingForSettle = false;
+                    sawMotionAfterShot = false;
+                    lastAutoStrikerX = -1f;
+                    lastAutoStrikerY = -1f;
+                    android.util.Log.i("AimAiAutoPlay", "Board settled; next shot unlocked");
+                }
+            }
 
             if (!intent.getBooleanExtra("isStriker", false)) {
-    aimGuideView.setGuideEnabled(false);
-    return;
-}
+                aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
+                aimGuideView.setGuideEnabled(false);
+                return;
+            }
 
             float x = intent.getFloatExtra("pieceX", 0.5f);
             float y = intent.getFloatExtra("pieceY", 0.8f);
-
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
-            boolean boardStable = intent.getBooleanExtra("boardStable", false);
-            long now = android.os.SystemClock.elapsedRealtime();
-            if (waitingForSettle && boardStable && now - lastAutoShotAt >= 2500L) {
-                waitingForSettle = false;
-                lastAutoStrikerX = -1f;
-                lastAutoStrikerY = -1f;
-                android.util.Log.i("AimAiAutoPlay", "Board settled; next shot unlocked");
-            }
-            if (autoPlay && gameForeground && !waitingForSettle && boardStable && targetFound && plannedShot
-                    && now - lastAutoShotAt > 2200
-                    && AimAiGestureService.isConnected() && AimAiGestureService.isGameForeground()) {
+
+            if (autoPlay && !waitingForSettle && boardStable && targetFound && plannedShot
+                    && (lastAutoShotAt == 0L || now - lastAutoShotAt > MIN_SHOT_GAP_MS)
+                    && AimAiGestureService.isConnected()) {
                 float gx = intent.getFloatExtra("ghostX", x);
                 float gy = intent.getFloatExtra("ghostY", y);
-                if (Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f
-                        || lastAutoShotAt == 0L) {
-                    int sw = getResources().getDisplayMetrics().widthPixels;
-                    int sh = getResources().getDisplayMetrics().heightPixels;
-                    if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh, intent.getFloatExtra("shotPower", 0.5f))) {
+                boolean strikerMoved = lastAutoStrikerX < 0f
+                        || Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f;
+                if (strikerMoved) {
+                    // Same real-screen space the capture used, so the swipe starts on the striker.
+                    int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+                    int sw = size[0];
+                    int sh = size[1];
+                    if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
+                            intent.getFloatExtra("shotPower", 0.5f))) {
                         waitingForSettle = true;
+                        sawMotionAfterShot = false;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
                         lastAutoStrikerX = x;
                         lastAutoStrikerY = y;
                     }
                 }
             }
+
             if (targetFound) {
                 float targetX = intent.getFloatExtra("targetPieceX", x);
                 float targetY = intent.getFloatExtra("targetPieceY", y);
@@ -112,11 +139,9 @@ public class AssistantOverlayService extends Service {
                 aimGuideView.setGuide(x, y, x, Math.max(0.05f, y - 0.25f));
             }
 
-
-            aimGuideView.setGuideEnabled(gameForeground);
+            aimGuideView.setGuideEnabled(true);
         }
     };
-
 
     private final android.content.BroadcastReceiver boardReceiver =
             new android.content.BroadcastReceiver() {
@@ -124,14 +149,12 @@ public class AssistantOverlayService extends Service {
         public void onReceive(android.content.Context context,
                               android.content.Intent intent) {
             if (aimGuideView == null) return;
-
+            // This receiver may only HIDE the guide. Showing it is the piece receiver's job,
+            // otherwise a frame without a striker would bring back a stale guide line.
             boolean found = intent.getBooleanExtra("found", false);
-            if (!found || !gameForeground) {
+            if (!found || !gameForeground || !enabled) {
                 aimGuideView.setGuideEnabled(false);
-                return;
             }
-
-            aimGuideView.setGuideEnabled(true);
         }
     };
 
@@ -205,9 +228,12 @@ public class AssistantOverlayService extends Service {
 
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         aimGuideView = new AimGuideView(this);
+        int[] size = ScreenMetrics.realSize(this);
+        aimGuideView.setScreenSize(size[0], size[1]);
         aimGuideView.setGuideStyle(selectedStyle);
         aimGuideView.setGuideThickness(thickness);
         liveGuidePreferencesListener = (preferences, key) -> {
+            if (aimGuideView == null) return;
             if ("guide_style".equals(key)) {
                 String[] styles = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
                 int index = preferences.getInt(key, 0);
@@ -247,24 +273,43 @@ public class AssistantOverlayService extends Service {
         if (Build.VERSION.SDK_INT >= 33) registerReceiver(gameStateReceiver, gameFilter, android.content.Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(gameStateReceiver, gameFilter);
         gameReceiverRegistered = true;
-        gameForeground = AimAiGestureService.isGameForeground() && prefs.getBoolean("game_foreground", false);
+        gameForeground = AimAiGestureService.isGameForeground();
         applyGameVisibility();
+
+        if (!AimAiGestureService.isConnected() && !warnedNoAccessibility) {
+            warnedNoAccessibility = true;
+            Toast.makeText(this,
+                    "Enable AimAi Max in Accessibility settings so the assistant can tell when Carrom Disc Pool is open.",
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     private TextView bubble;
     private final android.content.BroadcastReceiver gameStateReceiver = new android.content.BroadcastReceiver() {
         @Override public void onReceive(android.content.Context context, Intent intent) {
             gameForeground = intent.getBooleanExtra("foreground", false);
+            // Fresh start on every transition: leaving pauses everything, returning resumes from a clean state.
             waitingForSettle = false;
+            sawMotionAfterShot = false;
             lastAutoShotAt = 0L;
+            lastAutoStrikerX = -1f;
+            lastAutoStrikerY = -1f;
             applyGameVisibility();
             android.util.Log.i("AimAiAutoPlay", "Overlay foreground gate=" + gameForeground);
         }
     };
+
     private void applyGameVisibility() {
-        if (bubble != null) bubble.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
-        if (panel != null && !gameForeground) panel.setVisibility(View.GONE);
+        if (!gameForeground) {
+            if (bubble != null) bubble.setVisibility(View.GONE);
+            if (panel != null) panel.setVisibility(View.GONE);
+        } else {
+            // Back in the game: show the compact bubble again.
+            if (panel != null) panel.setVisibility(View.GONE);
+            if (bubble != null) bubble.setVisibility(View.VISIBLE);
+        }
         if (aimGuideView != null) {
+            aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
             aimGuideView.setGuideEnabled(false);
             aimGuideView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         }
@@ -282,6 +327,12 @@ public class AssistantOverlayService extends Service {
         if (bubble != null) bubble.setVisibility(View.VISIBLE);
     }
 
+    private int overlayType() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                : WindowManager.LayoutParams.TYPE_PHONE;
+    }
+
     private void createPanel() {
         aimGuideView.setGuideEnabled(false);
 
@@ -292,16 +343,13 @@ public class AssistantOverlayService extends Service {
         bubble.setBackground(shape(accent, 28));
         WindowManager.LayoutParams bubbleParams = new WindowManager.LayoutParams(
                 dp(54), dp(54),
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE,
+                overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
         bubbleParams.gravity = Gravity.TOP | Gravity.END;
         bubbleParams.x = dp(12);
         bubbleParams.y = dp(160);
-        bubble.setOnClickListener(v -> showPanel());
         bubble.setOnTouchListener(new View.OnTouchListener() {
             private int startX, startY;
             private float touchX, touchY;
@@ -321,7 +369,7 @@ public class AssistantOverlayService extends Service {
                     if (Math.abs(dx) + Math.abs(dy) > dp(6)) moved = true;
                     bubbleParams.x = Math.max(0, startX - dx);
                     bubbleParams.y = Math.max(0, startY + dy);
-                    windowManager.updateViewLayout(bubble, bubbleParams);
+                    if (bubble != null) windowManager.updateViewLayout(bubble, bubbleParams);
                     return true;
                 }
                 if (event.getAction() == MotionEvent.ACTION_UP) {
@@ -374,11 +422,11 @@ public class AssistantOverlayService extends Service {
                 return;
             }
             autoPlay = checked;
-            if (!checked) {
-                lastAutoShotAt = 0L;
-                lastAutoStrikerX = -1f;
-                lastAutoStrikerY = -1f;
-            }
+            waitingForSettle = false;
+            sawMotionAfterShot = false;
+            lastAutoShotAt = 0L;
+            lastAutoStrikerX = -1f;
+            lastAutoStrikerY = -1f;
         });
         addRow(panel, autoPlaySwitch);
 
@@ -433,9 +481,7 @@ public class AssistantOverlayService extends Service {
 
         params = new WindowManager.LayoutParams(
                 dp(280), WindowManager.LayoutParams.WRAP_CONTENT,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE,
+                overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
@@ -446,16 +492,19 @@ public class AssistantOverlayService extends Service {
         WindowManager.LayoutParams guideParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                        ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                        : WindowManager.LayoutParams.TYPE_PHONE,
+                overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT);
+        if (Build.VERSION.SDK_INT >= 28) {
+            guideParams.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
         windowManager.addView(aimGuideView, guideParams);
         windowManager.addView(panel, params);
-        showBubble();
+        applyGameVisibility();
     }
 
     @Override
@@ -497,7 +546,7 @@ public class AssistantOverlayService extends Service {
         }
 
         if (panel != null && windowManager != null) {
-            windowManager.removeView(panel);
+            try { windowManager.removeView(panel); } catch (IllegalArgumentException ignored) {}
             panel = null;
         }
 

@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -57,12 +58,6 @@ public final class FeatureScreens {
                         activity, android.R.layout.simple_spinner_dropdown_item, items));
                 content.addView(equipment);
                 equipment.setSelection(equipmentPrefs.getInt("equipment_choice", 0));
-                equipment.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-                    public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-                    public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) {
-                        equipmentPrefs.edit().putInt("equipment_choice", position).apply();
-                    }
-                });
                 android.widget.TextView selected = new android.widget.TextView(activity);
                 selected.setTextColor(Color.LTGRAY);
                 content.addView(selected);
@@ -139,7 +134,7 @@ public final class FeatureScreens {
                         prefs.getInt("guide_thickness", 8))));
                 thickness.setOnSeekBarChangeListener(new android.widget.SeekBar.OnSeekBarChangeListener() {
                     public void onProgressChanged(android.widget.SeekBar bar, int progress, boolean fromUser) {
-                        prefs.edit().putInt("guide_thickness", progress).apply();
+                        prefs.edit().putInt("guide_thickness", Math.max(1, progress)).apply();
                     }
                     public void onStartTrackingTouch(android.widget.SeekBar bar) {}
                     public void onStopTrackingTouch(android.widget.SeekBar bar) {}
@@ -153,10 +148,13 @@ public final class FeatureScreens {
                 screenSwitch.setChecked(prefs.getBoolean("keep_screen_awake", false));
                 screenSwitch.setOnCheckedChangeListener((button, checked) -> {
                     prefs.edit().putBoolean("keep_screen_awake", checked).apply();
-                    android.provider.Settings.System.putInt(
-                            activity.getContentResolver(),
-                            android.provider.Settings.System.SCREEN_OFF_TIMEOUT,
-                            checked ? 30 * 60 * 1000 : 60 * 1000);
+                    // Window flag instead of Settings.System.putInt, which needs the WRITE_SETTINGS
+                    // permission and crashed with a SecurityException.
+                    if (checked) {
+                        activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    } else {
+                        activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    }
                 });
                 content.addView(screenSwitch);
 

@@ -4,12 +4,18 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.view.View;
 
 public class AimGuideView extends View {
 
+    // Colours are chosen so the board analyzer (which sees our own overlay in the capture)
+    // never classifies them as white / black / red / wood pieces.
+    private static final int ROUTE_YELLOW = Color.rgb(255, 214, 0);
+    private static final int ROUTE_GREEN = Color.rgb(0, 255, 110);
+    private static final int START_MARK = Color.rgb(255, 0, 200);
+
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final int[] loc = new int[2];
     private float startX = 0.5f;
     private float startY = 0.85f;
     private float endX = 0.5f;
@@ -18,9 +24,22 @@ public class AimGuideView extends View {
     private int accentColor = Color.CYAN;
     private boolean guideEnabled = true;
     private String guideStyle = "FOCUS";
+    private int screenW = 0, screenH = 0;
 
     private float ghostX = -1f, ghostY = -1f, pocketX = -1f, pocketY = -1f;
     private boolean shotRouteEnabled = false;
+
+    public AimGuideView(Context context) {
+        super(context);
+        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+    }
+
+    /** Real physical screen size; normalized coordinates refer to this area, not to the view. */
+    public void setScreenSize(int w, int h) {
+        screenW = w;
+        screenH = h;
+        invalidate();
+    }
 
     public void setShotRoute(float gx, float gy, float px, float py, boolean enabled) {
         ghostX = clamp(gx);
@@ -29,11 +48,6 @@ public class AimGuideView extends View {
         pocketY = clamp(py);
         shotRouteEnabled = enabled;
         invalidate();
-    }
-
-    public AimGuideView(Context context) {
-        super(context);
-        setLayerType(View.LAYER_TYPE_HARDWARE, null);
     }
 
     public void setGuide(float sx, float sy, float ex, float ey) {
@@ -78,16 +92,27 @@ public class AimGuideView extends View {
         super.onDraw(canvas);
         if (!guideEnabled) return;
 
-        float sx = startX * getWidth();
-        float sy = startY * getHeight();
-        float ex = endX * getWidth();
-        float ey = endY * getHeight();
+        getLocationOnScreen(loc);
+        float sw = screenW > 0 ? screenW : getWidth();
+        float sh = screenH > 0 ? screenH : getHeight();
+        float ox = loc[0];
+        float oy = loc[1];
 
+        float sx = startX * sw - ox;
+        float sy = startY * sh - oy;
+        float ex = endX * sw - ox;
+        float ey = endY * sh - oy;
+        float gx = ghostX * sw - ox;
+        float gy = ghostY * sh - oy;
+        float px = pocketX * sw - ox;
+        float py = pocketY * sh - oy;
+
+        paint.setPathEffect(null);
         paint.setColor(accentColor);
         if ("RAINBOW".equals(guideStyle)) {
             paint.setShader(new android.graphics.LinearGradient(
                 sx, sy, ex, ey,
-                new int[]{Color.RED, Color.YELLOW, Color.GREEN, Color.CYAN, Color.MAGENTA},
+                new int[]{Color.rgb(255, 120, 0), Color.YELLOW, Color.GREEN, Color.CYAN, Color.MAGENTA},
                 null, android.graphics.Shader.TileMode.CLAMP));
         } else {
             paint.setShader(null);
@@ -106,29 +131,28 @@ public class AimGuideView extends View {
                 new float[]{18f, 10f}, 0f));
         }
         canvas.drawLine(sx, sy, ex, ey, paint);
-        if (shotRouteEnabled) {
-            paint.setPathEffect(new android.graphics.DashPathEffect(new float[]{10f, 8f}, 0f));
-            paint.setColor(Color.YELLOW);
-            canvas.drawLine(ex, ey, ghostX * getWidth(), ghostY * getHeight(), paint);
-            paint.setPathEffect(null);
-            paint.setColor(Color.GREEN);
-            canvas.drawLine(ghostX * getWidth(), ghostY * getHeight(),
-                    pocketX * getWidth(), pocketY * getHeight(), paint);
-            paint.setColor(Color.YELLOW);
-            canvas.drawCircle(pocketX * getWidth(), pocketY * getHeight(), thickness * 4f, paint);
-        }
         paint.setPathEffect(null);
         paint.setShader(null);
+
+        if (shotRouteEnabled) {
+            paint.setShadowLayer(0f, 0f, 0f, 0);
+            paint.setStrokeWidth(thickness);
+            paint.setColor(ROUTE_GREEN);
+            canvas.drawLine(gx, gy, px, py, paint);
+            paint.setColor(ROUTE_YELLOW);
+            canvas.drawCircle(px, py, thickness * 4f, paint);
+        }
         paint.clearShadowLayer();
 
-        paint.clearShadowLayer();
+        paint.setColor(accentColor);
         paint.setStyle(Paint.Style.FILL);
         canvas.drawCircle(ex, ey, thickness * 2.5f, paint);
 
         paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeWidth(thickness);
         canvas.drawCircle(ex, ey, thickness * 5f, paint);
 
-        paint.setColor(Color.WHITE);
+        paint.setColor(START_MARK);
         paint.setStrokeWidth(Math.max(1f, thickness / 2f));
         canvas.drawCircle(sx, sy, thickness * 2f, paint);
     }

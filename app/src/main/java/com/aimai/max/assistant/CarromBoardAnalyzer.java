@@ -75,6 +75,33 @@ public final class CarromBoardAnalyzer {
         }
     }
 
+    /** Longest run of indices whose value is above thr, bridging gaps of up to maxGap cells. */
+    private static int[] longestRun(int[] v, float thr, int maxGap) {
+        int bestS = -1, bestE = -1, curS = -1, curE = -1, gap = 0;
+        for (int i = 0; i < v.length; i++) {
+            if (v[i] > thr) {
+                if (curS < 0) curS = i;
+                curE = i;
+                gap = 0;
+            } else if (curS >= 0) {
+                gap++;
+                if (gap > maxGap) {
+                    if (bestS < 0 || curE - curS > bestE - bestS) { bestS = curS; bestE = curE; }
+                    curS = -1;
+                    gap = 0;
+                }
+            }
+        }
+        if (curS >= 0 && (bestS < 0 || curE - curS > bestE - bestS)) { bestS = curS; bestE = curE; }
+        return bestS < 0 ? null : new int[]{bestS, bestE};
+    }
+
+    private static int maxOf(int[] v) {
+        int m = 0;
+        for (int x : v) if (x > m) m = x;
+        return m;
+    }
+
     private static Analysis analyzeInternal(Bitmap bmp, Analysis result) {
         int w = bmp.getWidth();
         int h = bmp.getHeight();
@@ -86,50 +113,56 @@ public final class CarromBoardAnalyzer {
         }
 
         int[] cls = new int[gw * gh];
-        int[] rowWood = new int[gh];
-        int[] colWood = new int[gw];
         float[] hsv = new float[3];
 
         for (int gy = 0; gy < gh; gy++) {
             for (int gx = 0; gx < gw; gx++) {
                 int sx = Math.min(w - 1, gx * step + step / 2);
                 int sy = Math.min(h - 1, gy * step + step / 2);
-                int c = classify(bmp.getPixel(sx, sy), hsv);
-                cls[gy * gw + gx] = c;
-                if (c == C_WOOD) {
-                    rowWood[gy]++;
-                    colWood[gx]++;
-                }
+                cls[gy * gw + gx] = classify(bmp.getPixel(sx, sy), hsv);
             }
         }
 
-        int top = -1;
-        int bottom = -1;
-        int left = -1;
-        int right = -1;
-        for (int y = 0; y < gh; y++) {
-            if (rowWood[y] > gw * 0.15f) {
-                if (top < 0) top = y;
-                bottom = y;
+        // Pass 1: coarse extent from the densest wood rows/columns (ignores small wooden HUD bits).
+        int[] rowWood = new int[gh];
+        int[] colWood = new int[gw];
+        for (int gy = 0; gy < gh; gy++) {
+            for (int gx = 0; gx < gw; gx++) {
+                if (cls[gy * gw + gx] == C_WOOD) { rowWood[gy]++; colWood[gx]++; }
             }
         }
-        for (int x = 0; x < gw; x++) {
-            if (colWood[x] > gh * 0.15f) {
-                if (left < 0) left = x;
-                right = x;
+        int[] rr = longestRun(rowWood, Math.max(gw * 0.15f, maxOf(rowWood) * 0.45f), 3);
+        int[] cr = longestRun(colWood, Math.max(gh * 0.10f, maxOf(colWood) * 0.45f), 3);
+        if (rr == null || cr == null) {
+            return result;
+        }
+        int top = rr[0], bottom = rr[1], left = cr[0], right = cr[1];
+
+        // Pass 2: recount only inside the coarse box so outside wood cannot stretch the edges.
+        int[] rowWood2 = new int[gh];
+        int[] colWood2 = new int[gw];
+        for (int gy = top; gy <= bottom; gy++) {
+            for (int gx = left; gx <= right; gx++) {
+                if (cls[gy * gw + gx] == C_WOOD) { rowWood2[gy]++; colWood2[gx]++; }
             }
         }
-        if (top < 0 || left < 0 || bottom - top < 10 || right - left < 10) {
+        int[] rr2 = longestRun(rowWood2, (right - left + 1) * 0.40f, 3);
+        int[] cr2 = longestRun(colWood2, (bottom - top + 1) * 0.40f, 3);
+        if (rr2 != null && cr2 != null) {
+            top = rr2[0]; bottom = rr2[1]; left = cr2[0]; right = cr2[1];
+        }
+
+        if (bottom - top < 10 || right - left < 10) {
             return result;
         }
 
         int bw = right - left + 1;
         int bh = bottom - top + 1;
-        if (bw > bh * 1.4f) {
+        if (bw > bh * 1.15f) {
             int cxm = (left + right) / 2;
             left = cxm - bh / 2;
             right = left + bh - 1;
-        } else if (bh > bw * 1.4f) {
+        } else if (bh > bw * 1.15f) {
             int cym = (top + bottom) / 2;
             top = cym - bw / 2;
             bottom = top + bw - 1;
@@ -248,25 +281,30 @@ public final class CarromBoardAnalyzer {
             return result;
         }
 
-        List<Float> radii = new ArrayList<>();
-        for (Piece p : result.pieces) {
-            radii.add(p.radius);
-        }
-        Collections.sort(radii);
-        float median = radii.get(radii.size() / 2);
-
+        // Striker = the biggest white disc in the lower part of the board, clearly larger than the coins.
         Piece cand = null;
         for (Piece p : result.pieces) {
             if (p.type != PieceType.WHITE) continue;
             if (p.y < result.board.top + boardH * 0.70f) continue;
-            if (p.radius < median * 1.12f) continue;
             if (cand == null || p.radius > cand.radius) {
                 cand = p;
             }
         }
         if (cand != null) {
-            cand.type = PieceType.STRIKER;
-            result.striker = cand;
+            List<Float> radii = new ArrayList<>();
+            for (Piece p : result.pieces) {
+                if (p != cand) radii.add(p.radius);
+            }
+            boolean bigEnough = true;
+            if (!radii.isEmpty()) {
+                Collections.sort(radii);
+                float median = radii.get(radii.size() / 2);
+                bigEnough = cand.radius >= median * 1.12f;
+            }
+            if (bigEnough) {
+                cand.type = PieceType.STRIKER;
+                result.striker = cand;
+            }
         }
         return result;
     }

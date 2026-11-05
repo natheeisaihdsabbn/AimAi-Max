@@ -20,7 +20,10 @@ public final class CarromShotPlanner {
         public float cutAngleDeg;
         public float afterDx;
         public float afterDy;
+        /** Planner cost in pixels (lower is better). Not a power value. */
         public float score;
+        /** 0..1 shot strength derived from the travel distance. */
+        public float power;
     }
 
     public static Shot plan(Analysis a, PieceType wanted) {
@@ -115,6 +118,9 @@ public final class CarromShotPlanner {
                         best.afterDy = 0f;
                     }
                     best.score = score;
+                    float travel = (sLen + tLen) / Math.max(1f, boardW * 1.6f);
+                    float cutPenalty = best.cutAngleDeg / 75f * 0.15f;
+                    best.power = Math.max(0.3f, Math.min(1f, 0.3f + 0.7f * travel + cutPenalty));
                 }
             }
         }
