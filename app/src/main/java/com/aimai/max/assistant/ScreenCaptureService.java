@@ -186,7 +186,11 @@ public class ScreenCaptureService extends Service {
 
         CarromBoardAnalyzer.Piece striker = result.striker;
         if (striker != null && result.board.detected) {
-            CarromShotPlanner.Shot shot = CarromShotPlanner.plan(result, null);
+            String mine = getSharedPreferences("aimai_settings", MODE_PRIVATE).getString("my_coins", "BLACK");
+            CarromBoardAnalyzer.PieceType wanted = "WHITE".equals(mine)
+                    ? CarromBoardAnalyzer.PieceType.WHITE
+                    : "ANY".equals(mine) ? null : CarromBoardAnalyzer.PieceType.BLACK;
+            CarromShotPlanner.Shot shot = CarromShotPlanner.plan(result, wanted);
             guideIntent.putExtra("isStriker", true);
             guideIntent.putExtra("pieceX", striker.x / frameW);
             guideIntent.putExtra("pieceY", striker.y / frameH);

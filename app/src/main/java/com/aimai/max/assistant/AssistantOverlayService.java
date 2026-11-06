@@ -60,6 +60,7 @@ public class AssistantOverlayService extends Service {
         @Override
         public void onReceive(android.content.Context context,
                               android.content.Intent intent) {
+            lastScanAt = android.os.SystemClock.elapsedRealtime();
             // Everything (guide, scanning results, AUTO PLAY) is dead while the game is not in front.
             if (aimGuideView == null || !enabled || !gameForeground
                     || !AimAiGestureService.isGameForeground()) {
@@ -295,6 +296,8 @@ public class AssistantOverlayService extends Service {
         gameReceiverRegistered = true;
         gameForeground = AimAiGestureService.isGameForeground();
         applyGameVisibility();
+        lastScanAt = android.os.SystemClock.elapsedRealtime();
+        uiHandler.postDelayed(watchdog, 2000L);
 
         if (!AimAiGestureService.isConnected() && !warnedNoAccessibility) {
             warnedNoAccessibility = true;
@@ -359,6 +362,21 @@ public class AssistantOverlayService extends Service {
     private static final String[] STYLE_NAMES = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
 
     private boolean smooth = false;
+    private final android.os.Handler uiHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private long lastScanAt = 0L;
+    private final Runnable watchdog = new Runnable() {
+        @Override public void run() {
+            if (bubble != null) {
+                boolean stale = gameForeground
+                        && android.os.SystemClock.elapsedRealtime() - lastScanAt > 6000L;
+                bubble.setText(stale ? "!" : "A");
+                if (stale && statsView != null) {
+                    statsView.setText("No scan data. Open AimAi Max and tap Launch to start screen capture.");
+                }
+            }
+            uiHandler.postDelayed(this, 2000L);
+        }
+    };
     private TextView statsView;
     private android.widget.ScrollView tabScroll;
     private IconView[] tabIcons;
@@ -582,7 +600,7 @@ public class AssistantOverlayService extends Service {
         head.setPadding(0, 0, 0, dp(10));
         col.addView(head);
 
-        Switch statsSwitch = accentSwitch(settings().getBoolean("scan_stats", false));
+        Switch statsSwitch = accentSwitch(settings().getBoolean("scan_stats", true));
         col.addView(switchRow("Stats", statsSwitch));
         statsView = label("Waiting for a scan…", 12, Color.rgb(170, 174, 190), false);
         statsView.setPadding(0, dp(6), 0, 0);
@@ -592,6 +610,30 @@ public class AssistantOverlayService extends Service {
             settings().edit().putBoolean("scan_stats", checked).apply();
             statsView.setVisibility(checked ? View.VISIBLE : View.GONE);
         });
+
+        col.addView(sectionTitle("MY COINS"));
+        LinearLayout coinRow = new LinearLayout(this);
+        final String[] coinKeys = {"BLACK", "WHITE", "ANY"};
+        final String[] coinNames = {"Black", "White", "Any"};
+        final TextView[] coinButtons = new TextView[3];
+        String savedCoins = settings().getString("my_coins", "BLACK");
+        for (int i = 0; i < 3; i++) {
+            final int index = i;
+            TextView b = label(coinNames[i], 13, Color.WHITE, false);
+            b.setGravity(Gravity.CENTER);
+            b.setBackground(shape(coinKeys[i].equals(savedCoins) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            b.setOnClickListener(v -> {
+                settings().edit().putString("my_coins", coinKeys[index]).apply();
+                for (int k = 0; k < 3; k++) {
+                    coinButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                }
+            });
+            coinButtons[i] = b;
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            coinRow.addView(b, bp);
+        }
+        col.addView(coinRow);
 
         col.addView(sectionTitle("GUIDE"));
         TextView reset = label("Reset guide settings", 13, Color.rgb(224, 128, 96), false);
@@ -751,6 +793,7 @@ public class AssistantOverlayService extends Service {
 
     @Override
     public void onDestroy() {
+        uiHandler.removeCallbacks(watchdog);
         if (liveGuidePreferencesListener != null) {
             getSharedPreferences("aimai_settings", MODE_PRIVATE)
                     .unregisterOnSharedPreferenceChangeListener(liveGuidePreferencesListener);
