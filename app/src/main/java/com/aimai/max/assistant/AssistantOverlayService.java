@@ -16,6 +16,10 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageView;
+import com.aimai.max.R;
+import com.aimai.max.ui.IconView;
+import com.aimai.max.ui.StylePreviewView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
 import android.widget.Switch;
@@ -35,7 +39,7 @@ public class AssistantOverlayService extends Service {
     private WindowManager.LayoutParams params;
     private boolean enabled = true;
     private String selectedStyle = "FOCUS";
-    private int accent = Color.rgb(0, 220, 190);
+    private int accent = Color.rgb(88, 166, 255);
     private int thickness = 5;
     private boolean autoPlay = false;
     private long lastAutoShotAt = 0L;
@@ -63,6 +67,11 @@ public class AssistantOverlayService extends Service {
             }
 
             boolean boardStable = intent.getBooleanExtra("boardStable", false);
+            if (statsView != null) {
+                statsView.setText("Striker: " + intent.getIntExtra("strikerCount", 0)
+                        + "   Guti: " + intent.getIntExtra("gutiCount", 0)
+                        + "   Board: " + (boardStable ? "steady" : "moving"));
+            }
             long now = android.os.SystemClock.elapsedRealtime();
 
             // Track the shot cycle: shot -> pieces move -> pieces stop -> scan again -> next shot.
@@ -178,6 +187,13 @@ public class AssistantOverlayService extends Service {
         return text;
     }
 
+    private TextView label(String value, int size, int color, boolean bold) {
+        TextView text = label(value, size);
+        text.setTextColor(color);
+        if (bold) text.setTypeface(null, Typeface.BOLD);
+        return text;
+    }
+
     private Button makeButton(String value) {
         Button button = new Button(this);
         button.setText(value);
@@ -206,6 +222,8 @@ public class AssistantOverlayService extends Service {
             selectedStyle = savedStyles[savedStyle];
         }
         thickness = Math.max(1, prefs.getInt("guide_thickness", 8));
+        accent = prefs.getInt("accent_color", accent);
+        smooth = prefs.getBoolean("guide_smooth", false);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
@@ -232,6 +250,8 @@ public class AssistantOverlayService extends Service {
         aimGuideView.setScreenSize(size[0], size[1]);
         aimGuideView.setGuideStyle(selectedStyle);
         aimGuideView.setGuideThickness(thickness);
+        aimGuideView.setAccentColor(accent);
+        aimGuideView.setSmooth(smooth);
         liveGuidePreferencesListener = (preferences, key) -> {
             if (aimGuideView == null) return;
             if ("guide_style".equals(key)) {
@@ -333,6 +353,271 @@ public class AssistantOverlayService extends Service {
                 : WindowManager.LayoutParams.TYPE_PHONE;
     }
 
+    private static final int[] ACCENTS = {
+            Color.rgb(88, 166, 255), Color.rgb(41, 182, 246), Color.rgb(29, 233, 182),
+            Color.rgb(126, 123, 201), Color.rgb(255, 179, 0), Color.rgb(41, 121, 255)};
+    private static final String[] STYLE_NAMES = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
+
+    private boolean smooth = false;
+    private TextView statsView;
+    private android.widget.ScrollView tabScroll;
+    private IconView[] tabIcons;
+    private StylePreviewView[] styleCards;
+    private StylePreviewView[] collisionCards;
+    private int currentTab = 0;
+
+    private android.content.SharedPreferences settings() {
+        return getSharedPreferences("aimai_settings", MODE_PRIVATE);
+    }
+
+    private TextView sectionTitle(String text) {
+        TextView t = label(text, 10, Color.rgb(135, 140, 155), false);
+        t.setLetterSpacing(0.12f);
+        t.setPadding(dp(2), dp(14), 0, dp(6));
+        return t;
+    }
+
+    private Switch accentSwitch(boolean checked) {
+        Switch s = new Switch(this);
+        s.setChecked(checked);
+        s.setThumbTintList(new android.content.res.ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{Color.WHITE, Color.rgb(170, 174, 186)}));
+        s.setTrackTintList(new android.content.res.ColorStateList(
+                new int[][]{{android.R.attr.state_checked}, {}},
+                new int[]{Color.rgb(96, 104, 150), Color.rgb(60, 64, 78)}));
+        return s;
+    }
+
+    private LinearLayout switchRow(String text, Switch sw) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        TextView t = label(text, 14, Color.WHITE, false);
+        row.addView(t, new LinearLayout.LayoutParams(0, -2, 1f));
+        row.addView(sw);
+        return row;
+    }
+
+    private void applyAccent() {
+        if (bubble != null) bubble.setBackground(shape(accent, 28));
+        if (aimGuideView != null) aimGuideView.setAccentColor(accent);
+        if (styleCards != null) for (StylePreviewView v : styleCards) v.setAccent(accent);
+        if (collisionCards != null) for (StylePreviewView v : collisionCards) v.setAccent(accent);
+        refreshRail();
+    }
+
+    private void refreshRail() {
+        if (tabIcons == null) return;
+        for (int i = 0; i < tabIcons.length; i++) {
+            tabIcons[i].setColor(i == currentTab ? accent : Color.rgb(120, 126, 142));
+        }
+    }
+
+    private void showTab(int index) {
+        currentTab = index;
+        refreshRail();
+        if (tabScroll == null) return;
+        tabScroll.removeAllViews();
+        View content = index == 0 ? buildDrawingsTab() : index == 1 ? buildAutoTab() : buildSystemTab();
+        tabScroll.addView(content, new android.widget.FrameLayout.LayoutParams(-1, -2));
+    }
+
+    private View buildDrawingsTab() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(10), 0, dp(6), dp(6));
+
+        Switch enabledSwitch = accentSwitch(enabled);
+        enabledSwitch.setOnCheckedChangeListener((b, checked) -> {
+            enabled = checked;
+            if (!checked && aimGuideView != null) aimGuideView.setGuideEnabled(false);
+        });
+        col.addView(switchRow("Enabled", enabledSwitch));
+
+        col.addView(sectionTitle("STYLE"));
+        styleCards = new StylePreviewView[STYLE_NAMES.length];
+        for (int i = 0; i < STYLE_NAMES.length; i += 2) {
+            LinearLayout row = new LinearLayout(this);
+            for (int j = i; j < i + 2; j++) {
+                final int index = j;
+                String name = STYLE_NAMES[j];
+                String shown = name.charAt(0) + name.substring(1).toLowerCase();
+                StylePreviewView card = new StylePreviewView(this, name, shown, accent);
+                card.setSelectedState(name.equals(selectedStyle));
+                card.setOnClickListener(v -> {
+                    selectedStyle = STYLE_NAMES[index];
+                    aimGuideView.setGuideStyle(selectedStyle);
+                    settings().edit().putInt("guide_style", index).apply();
+                    for (int k = 0; k < styleCards.length; k++) {
+                        styleCards[k].setSelectedState(k == index);
+                    }
+                });
+                styleCards[j] = card;
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(66), 1f);
+                cp.setMargins(dp(3), dp(3), dp(3), dp(3));
+                row.addView(card, cp);
+            }
+            col.addView(row);
+        }
+
+        LinearLayout thickRow = new LinearLayout(this);
+        thickRow.setGravity(Gravity.CENTER_VERTICAL);
+        thickRow.setPadding(0, dp(14), 0, 0);
+        thickRow.addView(label("Thickness", 14, Color.WHITE, false), new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView thickValue = label(thickness + ".0", 12, Color.rgb(135, 140, 155), false);
+        thickRow.addView(thickValue);
+        col.addView(thickRow);
+        SeekBar seek = new SeekBar(this);
+        seek.setMax(20);
+        seek.setProgress(thickness);
+        seek.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(126, 123, 201)));
+        seek.setThumbTintList(android.content.res.ColorStateList.valueOf(Color.rgb(170, 166, 235)));
+        seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            public void onProgressChanged(SeekBar bar, int value, boolean user) {
+                thickness = Math.max(1, value);
+                thickValue.setText(thickness + ".0");
+                settings().edit().putInt("guide_thickness", thickness).apply();
+                aimGuideView.setGuideThickness(thickness);
+            }
+            public void onStartTrackingTouch(SeekBar bar) {}
+            public void onStopTrackingTouch(SeekBar bar) {}
+        });
+        col.addView(seek);
+
+        col.addView(sectionTitle("COLLISION"));
+        collisionCards = new StylePreviewView[2];
+        LinearLayout collisionRow = new LinearLayout(this);
+        String[] modes = {"SHARP", "SMOOTH"};
+        String[] shownModes = {"Sharp", "Smooth"};
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            StylePreviewView card = new StylePreviewView(this, modes[i], shownModes[i], accent);
+            card.setSelectedState((i == 1) == smooth);
+            card.setOnClickListener(v -> {
+                smooth = index == 1;
+                settings().edit().putBoolean("guide_smooth", smooth).apply();
+                aimGuideView.setSmooth(smooth);
+                collisionCards[0].setSelectedState(!smooth);
+                collisionCards[1].setSelectedState(smooth);
+            });
+            collisionCards[i] = card;
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(58), 1f);
+            cp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            collisionRow.addView(card, cp);
+        }
+        col.addView(collisionRow);
+
+        col.addView(sectionTitle("ACCENT"));
+        LinearLayout dotRow = new LinearLayout(this);
+        dotRow.setGravity(Gravity.CENTER_VERTICAL);
+        final View[] dots = new View[ACCENTS.length];
+        for (int i = 0; i < ACCENTS.length; i++) {
+            final int color = ACCENTS[i];
+            View dot = new View(this);
+            dots[i] = dot;
+            dot.setOnClickListener(v -> {
+                accent = color;
+                settings().edit().putInt("accent_color", accent).apply();
+                for (int k = 0; k < dots.length; k++) {
+                    GradientDrawable gd = shape(ACCENTS[k], 15);
+                    if (ACCENTS[k] == accent) gd.setStroke(dp(2), Color.WHITE);
+                    dots[k].setBackground(gd);
+                }
+                applyAccent();
+            });
+            GradientDrawable g = shape(color, 15);
+            if (color == accent) g.setStroke(dp(2), Color.WHITE);
+            dot.setBackground(g);
+            LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(dp(30), dp(30), 1f);
+            dp1.setMargins(dp(6), dp(2), dp(6), dp(2));
+            dotRow.addView(dot, dp1);
+        }
+        col.addView(dotRow);
+        return col;
+    }
+
+    private View buildAutoTab() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(10), 0, dp(6), dp(6));
+        TextView head = label("Auto Play", 20, Color.WHITE, true);
+        head.setPadding(0, 0, 0, dp(10));
+        col.addView(head);
+
+        Switch autoSwitch = accentSwitch(autoPlay);
+        autoSwitch.setOnCheckedChangeListener((b, checked) -> {
+            if (checked && !AimAiGestureService.isConnected()) {
+                autoSwitch.setChecked(false);
+                Toast.makeText(this, "Turn on AimAi Max in Accessibility settings first.",
+                        Toast.LENGTH_LONG).show();
+                startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                return;
+            }
+            autoPlay = checked;
+            waitingForSettle = false;
+            sawMotionAfterShot = false;
+            lastAutoShotAt = 0L;
+            lastAutoStrikerX = -1f;
+            lastAutoStrikerY = -1f;
+        });
+        col.addView(switchRow("AUTO PLAY", autoSwitch));
+
+        col.addView(sectionTitle("STATUS"));
+        col.addView(label("Accessibility: " + (AimAiGestureService.isConnected() ? "connected" : "not connected"),
+                13, Color.rgb(190, 194, 208), false));
+        TextView hint = label("Takes a shot only when the board has stopped moving, then scans again "
+                + "and plays the next shot. It pauses whenever the game is not on screen.",
+                12, Color.rgb(135, 140, 155), false);
+        hint.setPadding(0, dp(10), 0, 0);
+        col.addView(hint);
+        return col;
+    }
+
+    private View buildSystemTab() {
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setPadding(dp(10), 0, dp(6), dp(6));
+        TextView head = label("System", 20, Color.WHITE, true);
+        head.setPadding(0, 0, 0, dp(10));
+        col.addView(head);
+
+        Switch statsSwitch = accentSwitch(settings().getBoolean("scan_stats", false));
+        col.addView(switchRow("Stats", statsSwitch));
+        statsView = label("Waiting for a scan…", 12, Color.rgb(170, 174, 190), false);
+        statsView.setPadding(0, dp(6), 0, 0);
+        statsView.setVisibility(statsSwitch.isChecked() ? View.VISIBLE : View.GONE);
+        col.addView(statsView);
+        statsSwitch.setOnCheckedChangeListener((b, checked) -> {
+            settings().edit().putBoolean("scan_stats", checked).apply();
+            statsView.setVisibility(checked ? View.VISIBLE : View.GONE);
+        });
+
+        col.addView(sectionTitle("GUIDE"));
+        TextView reset = label("Reset guide settings", 13, Color.rgb(224, 128, 96), false);
+        reset.setPadding(0, dp(4), 0, dp(10));
+        reset.setOnClickListener(v -> {
+            selectedStyle = STYLE_NAMES[0];
+            thickness = 8;
+            smooth = false;
+            accent = ACCENTS[0];
+            settings().edit().putInt("guide_style", 0).putInt("guide_thickness", 8)
+                    .putBoolean("guide_smooth", false).putInt("accent_color", accent).apply();
+            aimGuideView.setGuideStyle(selectedStyle);
+            aimGuideView.setGuideThickness(thickness);
+            aimGuideView.setSmooth(false);
+            applyAccent();
+            Toast.makeText(this, "Guide settings reset.", Toast.LENGTH_SHORT).show();
+        });
+        col.addView(reset);
+
+        Button close = makeButton("Close assistant");
+        close.setBackground(shape(Color.rgb(120, 40, 52), 12));
+        close.setOnClickListener(v -> stopSelf());
+        col.addView(close, new LinearLayout.LayoutParams(-1, dp(44)));
+        return col;
+    }
+
     private void createPanel() {
         aimGuideView.setGuideEnabled(false);
 
@@ -381,113 +666,65 @@ public class AssistantOverlayService extends Service {
         });
         windowManager.addView(bubble, bubbleParams);
 
+        // ---- video-style panel: header, icon rail on the left, content on the right
         panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(12), dp(10), dp(12), dp(12));
-        panel.setBackground(shape(Color.rgb(15, 20, 32), 20));
+        panel.setPadding(dp(14), dp(12), dp(12), dp(14));
+        GradientDrawable panelBg = shape(Color.argb(245, 12, 14, 20), 20);
+        panelBg.setStroke(dp(1), Color.rgb(34, 38, 50));
+        panel.setBackground(panelBg);
 
         LinearLayout headerRow = new LinearLayout(this);
         headerRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView header = label("AIMAI MAX", 15);
-        header.setTypeface(null, Typeface.BOLD);
-        header.setTextColor(accent);
-        headerRow.addView(header, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        Button collapse = makeButton("MINIMIZE");
-        collapse.setOnClickListener(v -> showBubble());
-        headerRow.addView(collapse);
+        ImageView logo = new ImageView(this);
+        logo.setImageResource(R.drawable.aimai_logo);
+        headerRow.addView(logo, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        TextView brand = label("AIM", 15, Color.WHITE, true);
+        brand.setPadding(dp(8), 0, 0, 0);
+        headerRow.addView(brand);
+        headerRow.addView(label("AI", 15, Color.rgb(135, 140, 155), true));
+        View spacer = new View(this);
+        headerRow.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1f));
+        TextView minimize = label("—", 18, Color.rgb(170, 174, 190), false);
+        minimize.setGravity(Gravity.CENTER);
+        minimize.setOnClickListener(v -> showBubble());
+        headerRow.addView(minimize, new LinearLayout.LayoutParams(dp(40), dp(36)));
         panel.addView(headerRow);
 
-        Switch toggle = new Switch(this);
-        toggle.setText("Assistant Enabled");
-        toggle.setTextColor(Color.WHITE);
-        toggle.setChecked(enabled);
-        toggle.setPadding(dp(4), 0, dp(4), 0);
-        toggle.setOnCheckedChangeListener((button, checked) -> {
-            enabled = checked;
-            if (!checked && aimGuideView != null) aimGuideView.setGuideEnabled(false);
-        });
-        addRow(panel, toggle);
-
-        Switch autoPlaySwitch = new Switch(this);
-        autoPlaySwitch.setText("AUTO PLAY");
-        autoPlaySwitch.setTextColor(Color.WHITE);
-        autoPlaySwitch.setChecked(autoPlay);
-        autoPlaySwitch.setPadding(dp(4), 0, dp(4), 0);
-        autoPlaySwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (checked && !AimAiGestureService.isConnected()) {
-                autoPlaySwitch.setChecked(false);
-                Toast.makeText(this, "Enable AimAi Max Auto Play in Accessibility settings", Toast.LENGTH_LONG).show();
-                startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-                return;
-            }
-            autoPlay = checked;
-            waitingForSettle = false;
-            sawMotionAfterShot = false;
-            lastAutoShotAt = 0L;
-            lastAutoStrikerX = -1f;
-            lastAutoStrikerY = -1f;
-        });
-        addRow(panel, autoPlaySwitch);
-
-        TextView styleTitle = label("GUIDE STYLE", 12);
-        styleTitle.setTextColor(accent);
-        panel.addView(styleTitle);
-        String[] styles = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
-        for (int i = 0; i < styles.length; i += 2) {
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            for (int j = i; j < Math.min(i + 2, styles.length); j++) {
-                String style = styles[j];
-                Button choice = makeButton(style);
-                LinearLayout.LayoutParams choiceParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
-                choiceParams.setMargins(dp(3), dp(3), dp(3), dp(3));
-                row.addView(choice, choiceParams);
-                choice.setOnClickListener(v -> {
-                    selectedStyle = style;
-                    aimGuideView.setGuideStyle(style);
-                    getSharedPreferences("aimai_settings", MODE_PRIVATE).edit()
-                            .putInt("guide_style", java.util.Arrays.asList(styles).indexOf(style)).apply();
-                });
-            }
-            panel.addView(row);
+        LinearLayout body = new LinearLayout(this);
+        body.setPadding(0, dp(8), 0, 0);
+        LinearLayout rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.VERTICAL);
+        rail.setGravity(Gravity.CENTER_HORIZONTAL);
+        int[] railIcons = {IconView.CROSSHAIR, IconView.PLAY, IconView.SLIDERS};
+        tabIcons = new IconView[railIcons.length];
+        for (int i = 0; i < railIcons.length; i++) {
+            final int index = i;
+            IconView icon = new IconView(this, railIcons[i]);
+            icon.setOnClickListener(v -> showTab(index));
+            tabIcons[i] = icon;
+            LinearLayout.LayoutParams ip = new LinearLayout.LayoutParams(dp(26), dp(26));
+            ip.setMargins(dp(6), dp(10), dp(6), dp(14));
+            rail.addView(icon, ip);
         }
+        body.addView(rail, new LinearLayout.LayoutParams(dp(40), -2));
 
-        TextView thicknessTitle = label("THICKNESS: " + thickness, 12);
-        thicknessTitle.setTextColor(Color.LTGRAY);
-        panel.addView(thicknessTitle);
-        SeekBar seekBar = new SeekBar(this);
-        seekBar.setMax(20);
-        seekBar.setProgress(thickness);
-        seekBar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
-        seekBar.setThumbTintList(android.content.res.ColorStateList.valueOf(accent));
-        seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            public void onProgressChanged(SeekBar bar, int value, boolean user) {
-                thickness = Math.max(1, value);
-                thicknessTitle.setText("THICKNESS: " + thickness);
-                getSharedPreferences("aimai_settings", MODE_PRIVATE).edit()
-                        .putInt("guide_thickness", thickness).apply();
-                aimGuideView.setGuideThickness(thickness);
-            }
-            public void onStartTrackingTouch(SeekBar bar) {}
-            public void onStopTrackingTouch(SeekBar bar) {}
-        });
-        panel.addView(seekBar);
+        tabScroll = new android.widget.ScrollView(this);
+        tabScroll.setVerticalScrollBarEnabled(false);
+        body.addView(tabScroll, new LinearLayout.LayoutParams(0, dp(330), 1f));
+        panel.addView(body);
+        showTab(0);
 
-        Button close = makeButton("CLOSE ASSISTANT");
-        close.setBackground(shape(Color.rgb(145, 42, 55), 12));
-        addRow(panel, close);
-        close.setOnClickListener(v -> stopSelf());
-
+        int[] size = ScreenMetrics.realSize(this);
+        int panelWidth = Math.min(size[0] - dp(24), dp(390));
         params = new WindowManager.LayoutParams(
-                dp(280), WindowManager.LayoutParams.WRAP_CONTENT,
+                panelWidth, WindowManager.LayoutParams.WRAP_CONTENT,
                 overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP | Gravity.END;
-        params.x = dp(12);
-        params.y = dp(100);
+        params.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        params.y = dp(110);
 
         WindowManager.LayoutParams guideParams = new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,

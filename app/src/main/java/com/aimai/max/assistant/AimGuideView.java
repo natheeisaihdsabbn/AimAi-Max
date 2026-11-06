@@ -23,6 +23,7 @@ public class AimGuideView extends View {
     private float thickness = 5f;
     private int accentColor = Color.CYAN;
     private boolean guideEnabled = true;
+    private boolean smooth = false;
     private String guideStyle = "FOCUS";
     private int screenW = 0, screenH = 0;
 
@@ -82,6 +83,12 @@ public class AimGuideView extends View {
         invalidate();
     }
 
+    /** Smooth = rounded, softly glowing line. Sharp = crisp, flat-ended line with no glow. */
+    public void setSmooth(boolean value) {
+        smooth = value;
+        invalidate();
+    }
+
     public void setGuideEnabled(boolean enabled) {
         guideEnabled = enabled;
         invalidate();
@@ -119,8 +126,12 @@ public class AimGuideView extends View {
         }
         paint.setStrokeWidth(thickness);
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeCap(Paint.Cap.ROUND);
-        paint.setShadowLayer(12f, 0f, 0f, accentColor);
+        paint.setStrokeCap(smooth ? Paint.Cap.ROUND : Paint.Cap.BUTT);
+        if (smooth) {
+            paint.setShadowLayer(12f, 0f, 0f, accentColor);
+        } else {
+            paint.clearShadowLayer();
+        }
 
         if ("GLOW".equals(guideStyle) || "AURORA".equals(guideStyle)) {
             paint.setShadowLayer(24f, 0f, 0f, accentColor);
