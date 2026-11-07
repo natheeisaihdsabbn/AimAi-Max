@@ -114,9 +114,10 @@ public class AssistantOverlayService extends Service {
                     int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
                     int sw = size[0];
                     int sh = size[1];
-                    boolean pullBack = !"FORWARD".equals(settings().getString("swipe_mode", "PULL"));
+                    boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
+                    float powerMul = settings().getInt("power_pct", 100) / 100f;
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
-                            intent.getFloatExtra("shotPower", 0.5f), pullBack)) {
+                            intent.getFloatExtra("shotPower", 0.5f), pullBack, powerMul)) {
                         waitingForSettle = true;
                         sawMotionAfterShot = false;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
@@ -378,7 +379,10 @@ public class AssistantOverlayService extends Service {
                     aimGuideView.setGuideEnabled(false);
                 }
                 if (stale && statsView != null) {
-                    statsView.setText("No scan data. Open AimAi Max and tap Launch to start screen capture.");
+                    statsView.setText(AimAiGestureService.lastScanError != 0
+                            ? "Screenshot error " + AimAiGestureService.lastScanError
+                            + ". In Accessibility settings turn AimAi Max off, then on again."
+                            : "No scan data. Open AimAi Max and tap Launch.");
                 }
             }
             uiHandler.postDelayed(this, 2000L);
@@ -590,10 +594,10 @@ public class AssistantOverlayService extends Service {
 
         col.addView(sectionTitle("SWIPE DIRECTION"));
         LinearLayout swipeRow = new LinearLayout(this);
-        final String[] swipeKeys = {"PULL", "FORWARD"};
-        final String[] swipeNames = {"Pull back", "Drag forward"};
+        final String[] swipeKeys = {"FORWARD", "PULL"};
+        final String[] swipeNames = {"Drag forward", "Pull back"};
         final TextView[] swipeButtons = new TextView[2];
-        String savedSwipe = settings().getString("swipe_mode", "PULL");
+        String savedSwipe = settings().getString("swipe_mode", "FORWARD");
         for (int i = 0; i < 2; i++) {
             final int index = i;
             TextView b = label(swipeNames[i], 13, Color.WHITE, false);
@@ -611,10 +615,40 @@ public class AssistantOverlayService extends Service {
             swipeRow.addView(b, bp);
         }
         col.addView(swipeRow);
-        TextView swipeHint = label("If the striker shoots the wrong way, switch this.", 11,
+        TextView swipeHint = label("Drag forward is right for Carrom Disc Pool. If the striker goes the wrong way, switch.", 11,
                 Color.rgb(135, 140, 155), false);
         swipeHint.setPadding(dp(2), dp(2), 0, 0);
         col.addView(swipeHint);
+
+        col.addView(sectionTitle("POWER"));
+        LinearLayout powerRow = new LinearLayout(this);
+        powerRow.setGravity(Gravity.CENTER_VERTICAL);
+        final TextView powerValue = label(settings().getInt("power_pct", 100) + "%", 16, Color.WHITE, true);
+        powerValue.setGravity(Gravity.CENTER);
+        TextView minus = label("−", 22, Color.WHITE, true);
+        minus.setGravity(Gravity.CENTER);
+        minus.setBackground(shape(Color.rgb(70, 74, 120), 12));
+        TextView plus = label("+", 22, Color.WHITE, true);
+        plus.setGravity(Gravity.CENTER);
+        plus.setBackground(shape(Color.rgb(70, 74, 120), 12));
+        minus.setOnClickListener(v -> {
+            int value = Math.max(30, settings().getInt("power_pct", 100) - 10);
+            settings().edit().putInt("power_pct", value).apply();
+            powerValue.setText(value + "%");
+        });
+        plus.setOnClickListener(v -> {
+            int value = Math.min(300, settings().getInt("power_pct", 100) + 10);
+            settings().edit().putInt("power_pct", value).apply();
+            powerValue.setText(value + "%");
+        });
+        powerRow.addView(minus, new LinearLayout.LayoutParams(dp(56), dp(44)));
+        powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        powerRow.addView(plus, new LinearLayout.LayoutParams(dp(56), dp(44)));
+        col.addView(powerRow);
+        TextView powerHint = label("Shot too weak? Press + . Too hard? Press − .", 11,
+                Color.rgb(135, 140, 155), false);
+        powerHint.setPadding(dp(2), dp(2), 0, 0);
+        col.addView(powerHint);
 
         col.addView(sectionTitle("STATUS"));
         col.addView(label("Accessibility: " + (AimAiGestureService.isConnected() ? "connected" : "not connected"),
@@ -648,27 +682,31 @@ public class AssistantOverlayService extends Service {
 
         col.addView(sectionTitle("MY COINS"));
         LinearLayout coinRow = new LinearLayout(this);
-        final String[] coinKeys = {"BLACK", "WHITE", "ANY"};
-        final String[] coinNames = {"Black", "White", "Any"};
-        final TextView[] coinButtons = new TextView[3];
-        String savedCoins = settings().getString("my_coins", "BLACK");
-        for (int i = 0; i < 3; i++) {
+        final String[] coinKeys = {"AUTO", "BLACK", "WHITE", "ANY"};
+        final String[] coinNames = {"Auto", "Black", "White", "Any"};
+        final TextView[] coinButtons = new TextView[4];
+        String savedCoins = settings().getString("my_coins", "AUTO");
+        for (int i = 0; i < 4; i++) {
             final int index = i;
-            TextView b = label(coinNames[i], 13, Color.WHITE, false);
+            TextView b = label(coinNames[i], 12, Color.WHITE, false);
             b.setGravity(Gravity.CENTER);
             b.setBackground(shape(coinKeys[i].equals(savedCoins) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
             b.setOnClickListener(v -> {
                 settings().edit().putString("my_coins", coinKeys[index]).apply();
-                for (int k = 0; k < 3; k++) {
+                for (int k = 0; k < 4; k++) {
                     coinButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
                 }
             });
             coinButtons[i] = b;
             LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
-            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            bp.setMargins(dp(2), dp(3), dp(2), dp(3));
             coinRow.addView(b, bp);
         }
         col.addView(coinRow);
+        TextView coinHint = label("Auto reads your coin colour from the icon next to your name.", 11,
+                Color.rgb(135, 140, 155), false);
+        coinHint.setPadding(dp(2), dp(2), 0, dp(6));
+        col.addView(coinHint);
 
         col.addView(sectionTitle("GUIDE"));
         TextView reset = label("Reset guide settings", 13, Color.rgb(224, 128, 96), false);
@@ -829,6 +867,7 @@ public class AssistantOverlayService extends Service {
     @Override
     public void onDestroy() {
         uiHandler.removeCallbacks(watchdog);
+        AimAiGestureService.setScanEnabled(false);
         if (liveGuidePreferencesListener != null) {
             getSharedPreferences("aimai_settings", MODE_PRIVATE)
                     .unregisterOnSharedPreferenceChangeListener(liveGuidePreferencesListener);

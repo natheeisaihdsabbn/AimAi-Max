@@ -16,7 +16,7 @@ public final class CarromBoardAnalyzer {
 
     private CarromBoardAnalyzer() {}
 
-    public enum PieceType { STRIKER, QUEEN, BLACK, WHITE, UNKNOWN }
+    public enum PieceType { STRIKER, QUEEN, BLACK, WHITE, OTHER, UNKNOWN }
 
     public static class Piece {
         public float x;
@@ -67,6 +67,7 @@ public final class CarromBoardAnalyzer {
     private static final int F_BLACK = 4;
     private static final int F_RED = 8;
     private static final int F_ORANGE = 16;
+    private static final int F_COLOR = 32;
 
     private static final float COIN_RADIUS_RATIO = 0.027f;
     private static final float STRIKER_RADIUS_RATIO = 0.036f;
@@ -95,6 +96,7 @@ public final class CarromBoardAnalyzer {
         if (s < 0.22f && v > 0.80f) f |= F_WHITE;
         if ((hh >= 350f || hh <= 8f) && s > 0.65f && v > 0.75f) f |= F_RED;
         if (hh >= 28f && hh <= 48f && s > 0.68f && v > 0.80f) f |= F_ORANGE;
+        if (s > 0.50f && v > 0.35f && hh > 60f && hh < 350f) f |= F_COLOR;
         if (hh >= 15f && hh <= 55f && s >= 0.20f && s <= 0.80f && v > 0.45f) f |= F_WOOD;
         return f;
     }
@@ -257,6 +259,7 @@ public final class CarromBoardAnalyzer {
         List<float[]> blackPeaks = findPeaks(f, F_BLACK, gw, gh, left, top, right, bottom, rcg, 0.55f, excl);
         List<float[]> whitePeaks = findPeaks(f, F_WHITE, gw, gh, left, top, right, bottom, rcg, 0.62f, excl);
         List<float[]> redPeaks = findPeaks(f, F_RED, gw, gh, left, top, right, bottom, rcg, 0.60f, excl);
+        List<float[]> colorPeaks = findPeaks(f, F_COLOR, gw, gh, left, top, right, bottom, rcg, 0.60f, excl);
 
         List<float[]> blackCoins = new ArrayList<>(blackPeaks);
         List<float[]> whiteCoins = new ArrayList<>();
@@ -281,6 +284,16 @@ public final class CarromBoardAnalyzer {
         }
         for (float[] p : redPeaks) {
             result.pieces.add(new Piece((p[0] + 0.5f) * step, (p[1] + 0.5f) * step, rc, PieceType.QUEEN));
+        }
+        // Coins in any other colour (blue, green, pink ...): kept as OTHER so any coin set works.
+        for (float[] p : colorPeaks) {
+            float px = (p[0] + 0.5f) * step, py = (p[1] + 0.5f) * step;
+            boolean dup = false;
+            for (Piece existing : result.pieces) {
+                float dx = existing.x - px, dy = existing.y - py;
+                if (dx * dx + dy * dy < (1.2f * rc) * (1.2f * rc)) { dup = true; break; }
+            }
+            if (!dup) result.pieces.add(new Piece(px, py, rc, PieceType.OTHER));
         }
         return result;
     }

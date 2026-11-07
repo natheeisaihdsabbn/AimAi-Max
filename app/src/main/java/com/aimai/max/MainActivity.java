@@ -93,6 +93,23 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------------ assistant start
 
+    private void startOverlayService() {
+        Intent overlay = new Intent(this, AssistantOverlayService.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(overlay);
+        else startService(overlay);
+    }
+
+    private void launchGame() {
+        Intent game = getPackageManager().getLaunchIntentForPackage("com.miniclip.carrom");
+        if (game != null) {
+            game.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(game);
+        } else {
+            Toast.makeText(this, "Carrom Disc Pool was not found. Please install it first.",
+                    Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void openAssistant() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
             Intent permission = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -102,15 +119,32 @@ public class MainActivity extends Activity {
                     Toast.LENGTH_LONG).show();
             return;
         }
-        Intent overlay = new Intent(this, AssistantOverlayService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(overlay);
-        else startService(overlay);
+
+        // Android 11+: scan with the accessibility screenshot, so there is no
+        // "start recording or casting" question at all.
+        if (Build.VERSION.SDK_INT >= 30) {
+            if (!AimAiGestureService.isConnected()) {
+                Toast.makeText(this,
+                        "One time only: turn on AimAi Max in Accessibility. After that, Launch never asks for screen recording.",
+                        Toast.LENGTH_LONG).show();
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                return;
+            }
+            startOverlayService();
+            AimAiGestureService.setScanEnabled(true);
+            launchGame();
+            return;
+        }
+
+        // Older Android: screen capture permission is the only way.
+        startOverlayService();
         MediaProjectionManager manager =
                 (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
         startActivityForResult(manager.createScreenCaptureIntent(), SCREEN_CAPTURE_REQUEST);
     }
 
     private void stopAssistant() {
+        AimAiGestureService.setScanEnabled(false);
         stopService(new Intent(this, AssistantOverlayService.class));
         stopService(new Intent(this, ScreenCaptureService.class));
         Toast.makeText(this, "Assistant stopped.", Toast.LENGTH_SHORT).show();
@@ -174,14 +208,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(capture);
         else startService(capture);
 
-        Intent game = getPackageManager().getLaunchIntentForPackage("com.miniclip.carrom");
-        if (game != null) {
-            game.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(game);
-        } else {
-            Toast.makeText(this, "Carrom Disc Pool was not found. Please install it first.",
-                    Toast.LENGTH_LONG).show();
-        }
+        launchGame();
     }
 
     @Override
