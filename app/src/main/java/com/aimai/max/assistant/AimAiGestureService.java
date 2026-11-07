@@ -246,39 +246,14 @@ public class AimAiGestureService extends AccessibilityService {
      * as the striker's x) and is dragged sideways to the wanted x. All values are real-screen pixels.
      */
     public static boolean dragSlider(float fromX, float toX, float y, int w, int h) {
-        final AimAiGestureService s = instance;
+        AimAiGestureService s = instance;
         if (s == null || Build.VERSION.SDK_INT < 24 || !gameForeground) {
             Log.w(TAG, "Slider drag rejected: game not foreground or service unavailable");
             return false;
         }
-        final float fx = clamp(fromX, 2, w - 2), tx = clamp(toX, 2, w - 2), fy = clamp(y, 2, h - 2);
+        float fx = clamp(fromX, 2, w - 2), tx = clamp(toX, 2, w - 2), fy = clamp(y, 2, h - 2);
         if (Math.abs(tx - fx) < 6f) return false;
-
-        if (Build.VERSION.SDK_INT >= 26) {
-            // Press and hold on the knob first, then drag: some sliders ignore a touch that starts moving at once.
-            Path hold = new Path();
-            hold.moveTo(fx, fy);
-            hold.lineTo(fx + 1f, fy);
-            final GestureDescription.StrokeDescription first =
-                    new GestureDescription.StrokeDescription(hold, 0, 180, true);
-            boolean ok = s.dispatchGesture(new GestureDescription.Builder().addStroke(first).build(),
-                    new GestureResultCallback() {
-                        @Override public void onCompleted(GestureDescription d) {
-                            Path move = new Path();
-                            move.moveTo(fx + 1f, fy);
-                            move.lineTo(tx, fy);
-                            GestureDescription.StrokeDescription second =
-                                    first.continueStroke(move, 0, 700, false);
-                            s.dispatchGesture(new GestureDescription.Builder().addStroke(second).build(), null, null);
-                        }
-                        @Override public void onCancelled(GestureDescription d) {
-                            Log.w(TAG, "Slider hold cancelled");
-                        }
-                    }, null);
-            Log.i(TAG, "dragSlider(hold) accepted=" + ok + " from=" + fx + " to=" + tx + " y=" + fy);
-            return ok;
-        }
-
+        // One plain stroke that always ends with the finger lifted, so the phone's touch can never get stuck.
         Path path = new Path();
         path.moveTo(fx, fy);
         path.lineTo(tx, fy);
