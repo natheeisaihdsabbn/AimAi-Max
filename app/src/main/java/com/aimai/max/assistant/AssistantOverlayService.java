@@ -38,6 +38,9 @@ public class AssistantOverlayService extends Service {
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
     private ShotPathView pathView;
+    private android.widget.FrameLayout overlayRoot;
+    private WindowManager.LayoutParams guideLp;
+    private float overlayAlpha = -1f;
     private float slideStartErr = 0f;
     private LinearLayout panel;
     private WindowManager.LayoutParams params;
@@ -96,12 +99,14 @@ public class AssistantOverlayService extends Service {
             }
 
             if (!intent.getBooleanExtra("isStriker", false)) {
+                setOverlayAlpha(0f);
                 if (pathView != null) pathView.clear();
                 aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                 aimGuideView.setGuideEnabled(false);
                 return;
             }
 
+            setOverlayAlpha(0.8f);
             float x = intent.getFloatExtra("pieceX", 0.5f);
             aimGuideView.setBodyRadius(intent.getFloatExtra("strikerRadius", 0f));
             aimGuideView.setPocketRadius(intent.getFloatExtra("pocketRadius", 0f));
@@ -233,6 +238,21 @@ public class AssistantOverlayService extends Service {
         if (t - lastHintAt < 1200L) return;
         lastHintAt = t;
         uiHandler.post(() -> Toast.makeText(AssistantOverlayService.this, text, Toast.LENGTH_SHORT).show());
+    }
+
+    /**
+     * Android 12 and newer drops touches that pass through an overlay window that is more than 80 percent
+     * opaque, so the game would not react to taps. The full-screen drawing window therefore stays
+     * invisible (0) while no board is on screen and at most 0.8 while it draws.
+     */
+    private void setOverlayAlpha(float a) {
+        if (overlayRoot == null || guideLp == null || windowManager == null || a == overlayAlpha) return;
+        overlayAlpha = a;
+        guideLp.alpha = a;
+        try {
+            windowManager.updateViewLayout(overlayRoot, guideLp);
+        } catch (Exception ignored) {
+        }
     }
 
     private boolean humanStyle() {
@@ -420,6 +440,7 @@ public class AssistantOverlayService extends Service {
             pathView.clear();
             pathView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         }
+        setOverlayAlpha(0f);
     }
 
     private void showPanel() {
@@ -967,24 +988,20 @@ public class AssistantOverlayService extends Service {
             guideParams.layoutInDisplayCutoutMode =
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
-        windowManager.addView(aimGuideView, guideParams);
-
+        // One full-screen window holds both drawings, so only one overlay can block touches (see setOverlayAlpha).
         pathView = new ShotPathView(this);
         pathView.setScreenSize(size[0], size[1]);
-        WindowManager.LayoutParams pathParams = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.MATCH_PARENT,
-                overlayType(),
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT);
-        if (Build.VERSION.SDK_INT >= 28) {
-            pathParams.layoutInDisplayCutoutMode =
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }
-        windowManager.addView(pathView, pathParams);
+        overlayRoot = new android.widget.FrameLayout(this);
+        overlayRoot.addView(aimGuideView, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+        overlayRoot.addView(pathView, new android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
+        guideParams.alpha = 0f;
+        overlayAlpha = 0f;
+        guideLp = guideParams;
+        windowManager.addView(overlayRoot, guideParams);
         windowManager.addView(panel, params);
         applyGameVisibility();
     }
@@ -1034,16 +1051,14 @@ public class AssistantOverlayService extends Service {
             panel = null;
         }
 
-        if (pathView != null && windowManager != null) {
-            try { windowManager.removeView(pathView); } catch (IllegalArgumentException ignored) {}
-            pathView = null;
-        }
+        pathView = null;
 
         if (aimGuideView != null && windowManager != null) {
             try {
-                windowManager.removeView(aimGuideView);
+                windowManager.removeView(overlayRoot);
             } catch (IllegalArgumentException ignored) {
             }
+            overlayRoot = null;
             aimGuideView = null;
         }
 
