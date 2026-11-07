@@ -131,7 +131,7 @@ public final class CarromBoardAnalyzer {
     private static Analysis analyzeInternal(Bitmap bmp, Analysis result) {
         int w = bmp.getWidth();
         int h = bmp.getHeight();
-        int step = Math.max(2, Math.min(w, h) / 300);
+        int step = Math.max(2, Math.round(Math.min(w, h) / 330f));
         int gw = w / step;
         int gh = h / step;
         if (gw < 20 || gh < 20) {
@@ -235,8 +235,11 @@ public final class CarromBoardAnalyzer {
         float rcg = rc / step;
 
         // ---- striker: the glowing orange ring around it (only shown on your own turn)
-        Piece striker = findStriker(f, gw, gh, left, top, right, bottom, step, base,
-                result.board, result.pockets, rs);
+        Piece striker = findStrikerRing(f, gw, gh, left, top, right, bottom, step, base, result.board, rs);
+        if (striker == null) {
+            striker = findStriker(f, gw, gh, left, top, right, bottom, step, base,
+                    result.board, result.pockets, rs);
+        }
         if (striker != null) {
             result.pieces.add(striker);
             result.striker = striker;
@@ -328,6 +331,70 @@ public final class CarromBoardAnalyzer {
     }
 
     // ------------------------------------------------------------------ striker
+
+    /**
+     * The striker has a white rim, a patterned (non-white) centre and nothing white just outside it.
+     * Plain coins are white all the way through, so they never match. Works with or without the glow.
+     */
+    private static Piece findStrikerRing(byte[] f, int gw, int gh, int left, int top, int right, int bottom,
+                                         int step, float base, Board board, float rs) {
+        float ringR = 0.0285f * base / step;
+        float innerR = 0.0095f * base / step;
+        float outerR = 0.043f * base / step;
+        int y0 = (int) (top + 0.55f * (bottom - top));
+        double bestScore = -10;
+        int bestX = -1, bestY = -1;
+        for (int y = y0; y <= bottom - 2; y++) {
+            for (int x = left + 2; x <= right - 2; x++) {
+                if ((f[y * gw + x] & F_WHITE) != 0) continue;
+                float ring = ringWhite(f, gw, gh, x, y, ringR, 24);
+                if (ring < 0.55f) continue;
+                float inner = ringWhite(f, gw, gh, x, y, innerR, 8);
+                if (inner > 0.30f) continue;
+                float outer = ringWhite(f, gw, gh, x, y, outerR, 24);
+                if (outer > 0.35f) continue;
+                double score = ring - inner - outer;
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestX = x;
+                    bestY = y;
+                }
+            }
+        }
+        if (bestX < 0) return null;
+
+        // refine: centroid of the white rim pixels around the best cell
+        int reach = (int) Math.ceil(1.25f * ringR);
+        double sx = 0, sy = 0;
+        int cnt = 0;
+        for (int yy = Math.max(0, bestY - reach); yy <= Math.min(gh - 1, bestY + reach); yy++) {
+            for (int xx = Math.max(0, bestX - reach); xx <= Math.min(gw - 1, bestX + reach); xx++) {
+                if ((f[yy * gw + xx] & F_WHITE) == 0) continue;
+                double d = Math.hypot(xx - bestX, yy - bestY);
+                if (d < 0.6f * ringR || d > 1.25f * ringR) continue;
+                sx += xx;
+                sy += yy;
+                cnt++;
+            }
+        }
+        float cx = bestX, cy = bestY;
+        if (cnt > 5) {
+            cx = (float) (sx / cnt);
+            cy = (float) (sy / cnt);
+        }
+        return new Piece((cx + 0.5f) * step, (cy + 0.5f) * step, rs, PieceType.STRIKER);
+    }
+
+    private static float ringWhite(byte[] f, int gw, int gh, float cx, float cy, float rad, int samples) {
+        int hit = 0;
+        for (int i = 0; i < samples; i++) {
+            double a = 2 * Math.PI * i / samples;
+            int x = Math.round((float) (cx + Math.cos(a) * rad));
+            int y = Math.round((float) (cy + Math.sin(a) * rad));
+            if (x >= 0 && x < gw && y >= 0 && y < gh && (f[y * gw + x] & F_WHITE) != 0) hit++;
+        }
+        return hit / (float) samples;
+    }
 
     private static Piece findStriker(byte[] f, int gw, int gh, int left, int top, int right, int bottom,
                                      int step, float base, Board board, List<Pocket> pockets, float rs) {

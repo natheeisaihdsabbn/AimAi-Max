@@ -16,19 +16,59 @@ import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ScreenCaptureService extends Service {
 
     public static final String EXTRA_RESULT_CODE = "result_code";
     public static final String EXTRA_RESULT_DATA = "result_data";
 
+    private static final long ANALYSIS_GAP_MS = 450L;
+    private static final long HOLD_LAST_MS = 1500L;
+
     private MediaProjection projection;
     private VirtualDisplay virtualDisplay;
     private ImageReader imageReader;
+    private HandlerThread workerThread;
+    private MediaProjection.Callback projectionCallback;
+    private Handler worker;
+
+    // Everything below is touched only on the worker thread.
     private long lastAnalysisTime = 0L;
-    private String previousSignature = "";
     private int stableFrameCount = 0;
+    private List<float[]> previousPieces = new ArrayList<>();
+    private CarromBoardAnalyzer.Analysis lastGood;
+    private long lastGoodAt = 0L;
+    private Intent lastGuideIntent;
+    private Intent lastBoardIntent;
+    private long lastBroadcastAt = 0L;
+
+    /**
+     * A phone screen that is not changing produces no new frames. Re-send the last result so the
+     * overlay knows scanning is alive, and count each quiet tick as one more "steady board" frame.
+     */
+    private final Runnable heartbeat = new Runnable() {
+        @Override
+        public void run() {
+            Handler w = worker;
+            if (w == null) return;
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (AimAiGestureService.isGameForeground() && lastGuideIntent != null
+                    && now - lastBroadcastAt >= 600L) {
+                stableFrameCount++;
+                lastGuideIntent.putExtra("boardStable", stableFrameCount >= 3);
+                sendBroadcast(new Intent(lastGuideIntent));
+                if (lastBoardIntent != null) sendBroadcast(new Intent(lastBoardIntent));
+                lastBroadcastAt = now;
+            }
+            w.postDelayed(this, 700L);
+        }
+    };
 
     @SuppressWarnings("deprecation")
     private static Intent readResultData(Intent intent) {
@@ -62,6 +102,13 @@ public class ScreenCaptureService extends Service {
         }
 
         try {
+            stopCapture();
+            // Scanning runs on its own thread so the phone, the overlay and the game never stall.
+            workerThread = new HandlerThread("AimAiScan", android.os.Process.THREAD_PRIORITY_BACKGROUND);
+            workerThread.start();
+            worker = new Handler(workerThread.getLooper());
+            worker.postDelayed(heartbeat, 700L);
+
             MediaProjectionManager manager =
                     (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
@@ -72,65 +119,22 @@ public class ScreenCaptureService extends Service {
                 return START_NOT_STICKY;
             }
 
-            // Real physical size, the same coordinate space the overlay and gestures use.
             int[] size = ScreenMetrics.realSize(this);
             int width = size[0];
             int height = size[1];
             int density = getResources().getDisplayMetrics().densityDpi;
 
-            imageReader = ImageReader.newInstance(
-                    width, height, PixelFormat.RGBA_8888, 2);
+            imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
+            imageReader.setOnImageAvailableListener(this::onFrame, worker);
 
-            imageReader.setOnImageAvailableListener(reader -> {
-                Image frame = null;
-                try {
-                    frame = reader.acquireLatestImage();
-                    if (frame == null) return;
-
-                    // Scanning is fully off whenever Carrom Disc Pool is not in the foreground.
-                    if (!AimAiGestureService.isGameForeground()) {
-                        stableFrameCount = 0;
-                        previousSignature = "";
-                        return;
-                    }
-                    long now = android.os.SystemClock.elapsedRealtime();
-                    if (now - lastAnalysisTime < 500) return;
-                    lastAnalysisTime = now;
-
-                    Image.Plane[] planes = frame.getPlanes();
-                    if (planes.length == 0) return;
-                    Image.Plane plane = planes[0];
-                    int fw = frame.getWidth();
-                    int fh = frame.getHeight();
-                    Bitmap raw = Bitmap.createBitmap(
-                            fw + (plane.getRowStride() - plane.getPixelStride() * fw)
-                                    / plane.getPixelStride(),
-                            fh, Bitmap.Config.ARGB_8888);
-                    raw.copyPixelsFromBuffer(plane.getBuffer());
-                    Bitmap cropped = Bitmap.createBitmap(raw, 0, 0, fw, fh);
-                    if (cropped != raw) raw.recycle();
-
-                    try {
-                        publishAnalysis(cropped);
-                    } finally {
-                        cropped.recycle();
-                    }
-                } catch (Exception e) {
-                    android.util.Log.e("AimAiMax", "Frame capture failed", e);
-                } finally {
-                    if (frame != null) {
-                        frame.close();
-                    }
-                }
-            }, null);
-
-            projection.registerCallback(new MediaProjection.Callback() {
+            projectionCallback = new MediaProjection.Callback() {
                 @Override
                 public void onStop() {
                     stopCapture();
                     stopSelf();
                 }
-            }, null);
+            };
+            projection.registerCallback(projectionCallback, worker);
 
             virtualDisplay = projection.createVirtualDisplay(
                     "AimAiMaxCapture",
@@ -140,7 +144,7 @@ public class ScreenCaptureService extends Service {
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     imageReader.getSurface(),
                     null,
-                    null
+                    worker
             );
 
         } catch (Exception e) {
@@ -152,35 +156,106 @@ public class ScreenCaptureService extends Service {
         return START_NOT_STICKY;
     }
 
+    private void onFrame(ImageReader reader) {
+        Image frame = null;
+        try {
+            frame = reader.acquireLatestImage();
+            if (frame == null) return;
+
+            // Scanning is fully off whenever Carrom Disc Pool is not in the foreground.
+            if (!AimAiGestureService.isGameForeground()) {
+                stableFrameCount = 0;
+                previousPieces = new ArrayList<>();
+                lastGood = null;
+                lastGuideIntent = null;
+                lastBoardIntent = null;
+                return;
+            }
+            long now = android.os.SystemClock.elapsedRealtime();
+            if (now - lastAnalysisTime < ANALYSIS_GAP_MS) return;
+            lastAnalysisTime = now;
+
+            Image.Plane[] planes = frame.getPlanes();
+            if (planes.length == 0) return;
+            Image.Plane plane = planes[0];
+            int fw = frame.getWidth();
+            int fh = frame.getHeight();
+            Bitmap raw = Bitmap.createBitmap(
+                    fw + (plane.getRowStride() - plane.getPixelStride() * fw) / plane.getPixelStride(),
+                    fh, Bitmap.Config.ARGB_8888);
+            raw.copyPixelsFromBuffer(plane.getBuffer());
+            Bitmap cropped = Bitmap.createBitmap(raw, 0, 0, fw, fh);
+            if (cropped != raw) raw.recycle();
+
+            // The Image buffer is no longer needed once copied; free it before the heavy work.
+            frame.close();
+            frame = null;
+
+            try {
+                publishAnalysis(cropped);
+            } finally {
+                cropped.recycle();
+            }
+        } catch (Throwable e) {
+            android.util.Log.e("AimAiMax", "Frame capture failed", e);
+        } finally {
+            if (frame != null) {
+                frame.close();
+            }
+        }
+    }
+
+    private boolean samePositions(List<float[]> a, List<CarromBoardAnalyzer.Piece> b, float tol) {
+        if (a.size() != b.size()) return false;
+        for (CarromBoardAnalyzer.Piece p : b) {
+            boolean found = false;
+            for (float[] q : a) {
+                float dx = q[0] - p.x, dy = q[1] - p.y;
+                if (dx * dx + dy * dy <= tol * tol) { found = true; break; }
+            }
+            if (!found) return false;
+        }
+        return true;
+    }
+
     private void publishAnalysis(Bitmap cropped) {
+        long started = android.os.SystemClock.elapsedRealtime();
         CarromBoardAnalyzer.Analysis result = CarromBoardAnalyzer.analyze(cropped);
+        long now = android.os.SystemClock.elapsedRealtime();
         float frameW = cropped.getWidth();
         float frameH = cropped.getHeight();
+
+        // Our own guide drawing can hide the striker for one frame. Keep the last good scan briefly.
+        if (result.board.detected && result.striker != null) {
+            lastGood = result;
+            lastGoodAt = now;
+        } else if (lastGood != null && now - lastGoodAt < HOLD_LAST_MS) {
+            result = lastGood;
+        } else {
+            lastGood = null;
+        }
 
         int strikerCount = result.striker != null ? 1 : 0;
         int coinCount = 0;
         for (CarromBoardAnalyzer.Piece p : result.pieces) {
             if (p != result.striker) coinCount++;
         }
-        android.util.Log.d("AimAiMax", "Pockets: " + result.pockets.size()
-                + ", pieces: " + result.pieces.size()
-                + ", strikers: " + strikerCount + ", guti: " + coinCount);
+        android.util.Log.d("AimAiMax", "scan " + (now - started) + "ms pockets=" + result.pockets.size()
+                + " pieces=" + result.pieces.size() + " striker=" + strikerCount + " coins=" + coinCount);
 
-        StringBuilder sig = new StringBuilder();
-        for (CarromBoardAnalyzer.Piece p : result.pieces) {
-            sig.append(Math.round(p.x / 12f)).append(",").append(Math.round(p.y / 12f)).append(";");
-        }
-        String currentSignature = sig.toString();
-        if (currentSignature.equals(previousSignature)) {
+        float tol = Math.max(6f, 0.012f * Math.max(1f, result.board.width()));
+        if (samePositions(previousPieces, result.pieces, tol)) {
             stableFrameCount++;
         } else {
             stableFrameCount = 0;
-            previousSignature = currentSignature;
+            List<float[]> copy = new ArrayList<>();
+            for (CarromBoardAnalyzer.Piece p : result.pieces) copy.add(new float[]{p.x, p.y});
+            previousPieces = copy;
         }
 
         Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");
         guideIntent.setPackage(getPackageName());
-        guideIntent.putExtra("boardStable", stableFrameCount >= 4);
+        guideIntent.putExtra("boardStable", stableFrameCount >= 3);
         guideIntent.putExtra("strikerCount", strikerCount);
         guideIntent.putExtra("gutiCount", coinCount);
 
@@ -208,6 +283,7 @@ public class ScreenCaptureService extends Service {
                 guideIntent.putExtra("shotPower", shot.power);
                 guideIntent.putExtra("pocketX", shot.pocket.x / frameW);
                 guideIntent.putExtra("pocketY", shot.pocket.y / frameH);
+                guideIntent.putExtra("pocketRadius", shot.pocket.radius / frameW);
                 guideIntent.putExtra("cutAngle", shot.cutAngleDeg);
                 guideIntent.putExtra("targetFound", true);
             } else {
@@ -219,6 +295,8 @@ public class ScreenCaptureService extends Service {
             guideIntent.putExtra("shotFound", false);
         }
         sendBroadcast(guideIntent);
+        lastGuideIntent = new Intent(guideIntent);
+        lastBroadcastAt = android.os.SystemClock.elapsedRealtime();
 
         Intent analysisIntent = new Intent("com.aimai.max.BOARD_ANALYSIS");
         analysisIntent.setPackage(getPackageName());
@@ -228,6 +306,7 @@ public class ScreenCaptureService extends Service {
         analysisIntent.putExtra("boardWidth", result.board.width() / frameW);
         analysisIntent.putExtra("boardHeight", result.board.height() / frameH);
         sendBroadcast(analysisIntent);
+        lastBoardIntent = new Intent(analysisIntent);
     }
 
     private void createNotification() {
@@ -264,9 +343,20 @@ public class ScreenCaptureService extends Service {
         if (ir != null) ir.close();
         MediaProjection mp = projection;
         projection = null;
+        MediaProjection.Callback cb = projectionCallback;
+        projectionCallback = null;
         if (mp != null) {
-            try { mp.stop(); } catch (RuntimeException ignored) {}
+            try {
+                if (cb != null) mp.unregisterCallback(cb);
+                mp.stop();
+            } catch (RuntimeException ignored) {}
         }
+        HandlerThread t = workerThread;
+        Handler w = worker;
+        workerThread = null;
+        worker = null;
+        if (w != null) w.removeCallbacks(heartbeat);
+        if (t != null) t.quitSafely();
     }
 
     @Override

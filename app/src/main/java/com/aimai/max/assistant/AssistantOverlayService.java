@@ -96,6 +96,8 @@ public class AssistantOverlayService extends Service {
             }
 
             float x = intent.getFloatExtra("pieceX", 0.5f);
+            aimGuideView.setBodyRadius(intent.getFloatExtra("strikerRadius", 0f));
+            aimGuideView.setPocketRadius(intent.getFloatExtra("pocketRadius", 0f));
             float y = intent.getFloatExtra("pieceY", 0.8f);
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
@@ -112,8 +114,9 @@ public class AssistantOverlayService extends Service {
                     int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
                     int sw = size[0];
                     int sh = size[1];
+                    boolean pullBack = !"FORWARD".equals(settings().getString("swipe_mode", "PULL"));
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
-                            intent.getFloatExtra("shotPower", 0.5f))) {
+                            intent.getFloatExtra("shotPower", 0.5f), pullBack)) {
                         waitingForSettle = true;
                         sawMotionAfterShot = false;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
@@ -358,7 +361,7 @@ public class AssistantOverlayService extends Service {
 
     private static final int[] ACCENTS = {
             Color.rgb(88, 166, 255), Color.rgb(41, 182, 246), Color.rgb(29, 233, 182),
-            Color.rgb(126, 123, 201), Color.rgb(255, 179, 0), Color.rgb(41, 121, 255)};
+            Color.rgb(126, 123, 201), Color.rgb(255, 105, 180), Color.rgb(41, 121, 255)};
     private static final String[] STYLE_NAMES = {"FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"};
 
     private boolean smooth = false;
@@ -368,8 +371,12 @@ public class AssistantOverlayService extends Service {
         @Override public void run() {
             if (bubble != null) {
                 boolean stale = gameForeground
-                        && android.os.SystemClock.elapsedRealtime() - lastScanAt > 6000L;
+                        && android.os.SystemClock.elapsedRealtime() - lastScanAt > 3500L;
                 bubble.setText(stale ? "!" : "A");
+                if (stale && aimGuideView != null) {
+                    aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
+                    aimGuideView.setGuideEnabled(false);
+                }
                 if (stale && statsView != null) {
                     statsView.setText("No scan data. Open AimAi Max and tap Launch to start screen capture.");
                 }
@@ -580,6 +587,34 @@ public class AssistantOverlayService extends Service {
             lastAutoStrikerY = -1f;
         });
         col.addView(switchRow("AUTO PLAY", autoSwitch));
+
+        col.addView(sectionTitle("SWIPE DIRECTION"));
+        LinearLayout swipeRow = new LinearLayout(this);
+        final String[] swipeKeys = {"PULL", "FORWARD"};
+        final String[] swipeNames = {"Pull back", "Drag forward"};
+        final TextView[] swipeButtons = new TextView[2];
+        String savedSwipe = settings().getString("swipe_mode", "PULL");
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            TextView b = label(swipeNames[i], 13, Color.WHITE, false);
+            b.setGravity(Gravity.CENTER);
+            b.setBackground(shape(swipeKeys[i].equals(savedSwipe) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            b.setOnClickListener(v -> {
+                settings().edit().putString("swipe_mode", swipeKeys[index]).apply();
+                for (int k = 0; k < 2; k++) {
+                    swipeButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                }
+            });
+            swipeButtons[i] = b;
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            swipeRow.addView(b, bp);
+        }
+        col.addView(swipeRow);
+        TextView swipeHint = label("If the striker shoots the wrong way, switch this.", 11,
+                Color.rgb(135, 140, 155), false);
+        swipeHint.setPadding(dp(2), dp(2), 0, 0);
+        col.addView(swipeHint);
 
         col.addView(sectionTitle("STATUS"));
         col.addView(label("Accessibility: " + (AimAiGestureService.isConnected() ? "connected" : "not connected"),

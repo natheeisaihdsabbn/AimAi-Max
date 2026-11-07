@@ -3,16 +3,22 @@ package com.aimai.max.assistant;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.DashPathEffect;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
+import android.graphics.Shader;
 import android.view.View;
 
+/**
+ * Draws the aim guide on top of the game. It is deliberately thin and starts/stops at the edge of the
+ * striker and the coin, so it never covers their centres (the scanner can still see them through it).
+ */
 public class AimGuideView extends View {
 
-    // Colours are chosen so the board analyzer (which sees our own overlay in the capture)
-    // never classifies them as white / black / red / wood pieces.
+    // Colours chosen so the board analyzer (which also sees this overlay) never mistakes
+    // them for white / black / red / orange game pieces.
     private static final int ROUTE_YELLOW = Color.rgb(255, 214, 0);
     private static final int ROUTE_GREEN = Color.rgb(0, 255, 110);
-    private static final int START_MARK = Color.rgb(255, 0, 200);
 
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final int[] loc = new int[2];
@@ -26,6 +32,8 @@ public class AimGuideView extends View {
     private boolean smooth = false;
     private String guideStyle = "FOCUS";
     private int screenW = 0, screenH = 0;
+    private float bodyRadius = 0f;      // striker radius as a fraction of the screen width
+    private float pocketRadius = 0f;    // pocket radius as a fraction of the screen width
 
     private float ghostX = -1f, ghostY = -1f, pocketX = -1f, pocketY = -1f;
     private boolean shotRouteEnabled = false;
@@ -40,6 +48,14 @@ public class AimGuideView extends View {
         screenW = w;
         screenH = h;
         invalidate();
+    }
+
+    public void setBodyRadius(float normalizedToWidth) {
+        bodyRadius = Math.max(0f, normalizedToWidth);
+    }
+
+    public void setPocketRadius(float normalizedToWidth) {
+        pocketRadius = Math.max(0f, normalizedToWidth);
     }
 
     public void setShotRoute(float gx, float gy, float px, float py, boolean enabled) {
@@ -114,57 +130,78 @@ public class AimGuideView extends View {
         float px = pocketX * sw - ox;
         float py = pocketY * sh - oy;
 
-        paint.setPathEffect(null);
-        paint.setColor(accentColor);
-        if ("RAINBOW".equals(guideStyle)) {
-            paint.setShader(new android.graphics.LinearGradient(
-                sx, sy, ex, ey,
-                new int[]{Color.rgb(255, 120, 0), Color.YELLOW, Color.GREEN, Color.CYAN, Color.MAGENTA},
-                null, android.graphics.Shader.TileMode.CLAMP));
-        } else {
+        float r = bodyRadius > 0f ? bodyRadius * sw : 0.032f * sw;   // striker radius in pixels
+        float coinR = r * 0.75f;
+        float stroke = Math.max(2f, thickness * 0.6f);
+
+        float dx = ex - sx, dy = ey - sy;
+        float len = (float) Math.hypot(dx, dy);
+
+        // ---- striker -> ghost striker (the line the striker travels)
+        if (len > r * 2.3f) {
+            float ux = dx / len, uy = dy / len;
+            float x0 = sx + ux * r * 1.1f, y0 = sy + uy * r * 1.1f;
+            float x1 = ex - ux * r, y1 = ey - uy * r;
+
+            paint.setPathEffect(null);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeCap(smooth ? Paint.Cap.ROUND : Paint.Cap.BUTT);
+            paint.setStrokeWidth(stroke);
+            paint.setColor(accentColor);
+            if ("RAINBOW".equals(guideStyle)) {
+                paint.setShader(new LinearGradient(x0, y0, x1, y1,
+                        new int[]{Color.rgb(255, 120, 0), Color.YELLOW, Color.GREEN, Color.CYAN, Color.MAGENTA},
+                        null, Shader.TileMode.CLAMP));
+            } else {
+                paint.setShader(null);
+            }
+            if (smooth) {
+                paint.setShadowLayer(10f, 0f, 0f, accentColor);
+            } else {
+                paint.clearShadowLayer();
+            }
+            if ("GLOW".equals(guideStyle) || "AURORA".equals(guideStyle)) {
+                paint.setShadowLayer(18f, 0f, 0f, accentColor);
+            } else if ("PULSE".equals(guideStyle)) {
+                paint.setStrokeWidth(stroke * 1.4f);
+            } else if ("FLOW".equals(guideStyle)) {
+                paint.setPathEffect(new DashPathEffect(new float[]{18f, 10f}, 0f));
+            }
+            canvas.drawLine(x0, y0, x1, y1, paint);
+            paint.setPathEffect(null);
             paint.setShader(null);
-        }
-        paint.setStrokeWidth(thickness);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeCap(smooth ? Paint.Cap.ROUND : Paint.Cap.BUTT);
-        if (smooth) {
-            paint.setShadowLayer(12f, 0f, 0f, accentColor);
-        } else {
             paint.clearShadowLayer();
         }
 
-        if ("GLOW".equals(guideStyle) || "AURORA".equals(guideStyle)) {
-            paint.setShadowLayer(24f, 0f, 0f, accentColor);
-        } else if ("PULSE".equals(guideStyle)) {
-            paint.setStrokeWidth(thickness * 1.5f);
-        } else if ("FLOW".equals(guideStyle)) {
-            paint.setPathEffect(new android.graphics.DashPathEffect(
-                new float[]{18f, 10f}, 0f));
-        }
-        canvas.drawLine(sx, sy, ex, ey, paint);
-        paint.setPathEffect(null);
-        paint.setShader(null);
-
-        if (shotRouteEnabled) {
-            paint.setShadowLayer(0f, 0f, 0f, 0);
-            paint.setStrokeWidth(thickness);
-            paint.setColor(ROUTE_GREEN);
-            canvas.drawLine(gx, gy, px, py, paint);
-            paint.setColor(ROUTE_YELLOW);
-            canvas.drawCircle(px, py, thickness * 4f, paint);
-        }
-        paint.clearShadowLayer();
-
-        paint.setColor(accentColor);
-        paint.setStyle(Paint.Style.FILL);
-        canvas.drawCircle(ex, ey, thickness * 2.5f, paint);
-
+        // ---- ghost striker: a thin ring exactly the size of the striker
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(thickness);
-        canvas.drawCircle(ex, ey, thickness * 5f, paint);
+        paint.setStrokeWidth(Math.max(2f, stroke * 0.7f));
+        paint.setColor(accentColor);
+        canvas.drawCircle(ex, ey, r, paint);
 
-        paint.setColor(START_MARK);
-        paint.setStrokeWidth(Math.max(1f, thickness / 2f));
-        canvas.drawCircle(sx, sy, thickness * 2f, paint);
+        // ---- coin -> pocket
+        if (shotRouteEnabled) {
+            float rx = px - gx, ry = py - gy;
+            float rl = (float) Math.hypot(rx, ry);
+            if (rl > 1f) {
+                float ux = rx / rl, uy = ry / rl;
+                float tcx = gx + ux * (r + coinR);           // centre of the coin being hit
+                float tcy = gy + uy * (r + coinR);
+                float pr = pocketRadius > 0f ? pocketRadius * sw : r * 1.1f;
+                float x0 = tcx + ux * coinR * 1.05f, y0 = tcy + uy * coinR * 1.05f;
+                float x1 = px - ux * pr, y1 = py - uy * pr;
+
+                paint.setStrokeCap(Paint.Cap.BUTT);
+                paint.setStrokeWidth(Math.max(2f, stroke * 0.8f));
+                paint.setColor(ROUTE_GREEN);
+                if ((x1 - x0) * ux + (y1 - y0) * uy > 4f) {
+                    canvas.drawLine(x0, y0, x1, y1, paint);
+                }
+                paint.setStrokeWidth(2f);
+                canvas.drawCircle(tcx, tcy, coinR + 3f, paint);   // marks the coin that will be hit
+                paint.setColor(ROUTE_YELLOW);
+                canvas.drawCircle(px, py, pr * 0.9f, paint);
+            }
+        }
     }
 }

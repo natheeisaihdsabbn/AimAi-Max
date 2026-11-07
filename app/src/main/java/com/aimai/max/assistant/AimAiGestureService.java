@@ -71,10 +71,11 @@ public class AimAiGestureService extends AccessibilityService {
     }
 
     /**
-     * Drag-to-shoot: the finger goes down ON the striker and is pulled backwards,
-     * opposite to the shot direction. (x,y) and (gx,gy) are real-screen pixels.
+     * Drag-to-shoot: the finger goes down ON the striker and is dragged (pulled back by default,
+     * or towards the target). (x,y) and (gx,gy) are real-screen pixels.
      */
-    public static boolean swipeShot(float x, float y, float gx, float gy, int w, int h, float power) {
+    public static boolean swipeShot(float x, float y, float gx, float gy, int w, int h, float power,
+                                    boolean pullBack) {
         AimAiGestureService s = instance;
         if (s == null || Build.VERSION.SDK_INT < 24 || !gameForeground) {
             Log.w(TAG, "Gesture rejected: game not foreground or service unavailable");
@@ -90,7 +91,9 @@ public class AimAiGestureService extends AccessibilityService {
         float pull = minSide * (0.07f + 0.13f * strength);
 
         float sx = clamp(x, 2, w - 2), sy = clamp(y, 2, h - 2);          // exact striker position
-        float ex = clamp(x - ux * pull, 2, w - 2), ey = clamp(y - uy * pull, 2, h - 2);
+        // pullBack: slingshot style (drag away from the target). Otherwise drag towards the target.
+        float dir = pullBack ? -1f : 1f;
+        float ex = clamp(x + dir * ux * pull, 2, w - 2), ey = clamp(y + dir * uy * pull, 2, h - 2);
         if (Math.hypot(ex - sx, ey - sy) < 8f) return false;
 
         Path path = new Path();
