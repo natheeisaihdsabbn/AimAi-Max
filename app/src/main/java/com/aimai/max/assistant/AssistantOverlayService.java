@@ -114,22 +114,21 @@ public class AssistantOverlayService extends Service {
                     && AimAiGestureService.isConnected()) {
                 float gx = intent.getFloatExtra("ghostX", x);
                 float gy = intent.getFloatExtra("ghostY", y);
-                boolean wantSlide = settings().getBoolean("slide_enabled", true)
-                        && sliderY > 0f && Math.abs(px - x) > 0.02f;
-                if (wantSlide) {
-                    // First move the striker to the best place, then scan again before shooting.
-                    if (now - lastSliderAt > SLIDER_GAP_MS) {
-                        if (sliderTries < 3) {
-                            int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
-                            if (AimAiGestureService.dragSlider(x * size[0], px * size[0],
-                                    sliderY * size[1], size[0], size[1])) {
-                                sliderTries++;
-                                lastSliderAt = now;
-                            }
-                        } else {
-                            // Sliding did not work this turn: shoot from where the striker stands.
-                            settings().edit().putBoolean("slide_enabled", false).apply();
-                        }
+                boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
+                float slideErr = Math.abs(px - x);
+                if (slideOn && slideErr > 0.008f) {
+                    if (slideErr <= 0.03f || sliderTries >= 8) {
+                        // Close enough (or sliding is not getting closer): stop sliding and plan the
+                        // shot again from the place where the striker really stands.
+                        settings().edit().putBoolean("slide_enabled", false).apply();
+                        hint("Striker placed, aiming");
+                    } else if (now - lastSliderAt > SLIDER_GAP_MS) {
+                        int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+                        AimAiGestureService.dragSlider(x * size[0], px * size[0],
+                                sliderY * size[1], size[0], size[1]);
+                        sliderTries++;
+                        lastSliderAt = now;
+                        hint("Moving striker " + sliderTries + "/8");
                     }
                 } else {
                     boolean strikerMoved = lastAutoStrikerX < 0f
@@ -153,6 +152,7 @@ public class AssistantOverlayService extends Service {
                             lastAutoStrikerY = y;
                             sliderTries = 0;
                             settings().edit().putBoolean("slide_enabled", true).apply();
+                            hint("Shot sent");
                         }
                     }
                 }
@@ -202,6 +202,16 @@ public class AssistantOverlayService extends Service {
             }
         }
     };
+
+    private long lastHintAt = 0L;
+
+    /** Short on-screen message about what Auto Play is doing, at most one every 1.2 seconds. */
+    private void hint(String text) {
+        long t = android.os.SystemClock.elapsedRealtime();
+        if (t - lastHintAt < 1200L) return;
+        lastHintAt = t;
+        uiHandler.post(() -> Toast.makeText(AssistantOverlayService.this, text, Toast.LENGTH_SHORT).show());
+    }
 
     private boolean humanStyle() {
         return "HUMAN".equals(settings().getString("play_style", "FAST"));
