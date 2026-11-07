@@ -15,12 +15,16 @@ public class ScanPipeline {
     /** The game's striker slider sits this far (in board widths) below the bottom edge of the board. */
     private static final float SLIDER_BELOW_BOARD = 0.368f;
 
+    /** True while the last scan found a carrom board. The scan loop slows down when it did not. */
+    public volatile boolean boardSeen = false;
+
     private int stableFrameCount = 0;
     private List<float[]> previousPieces = new ArrayList<>();
     private CarromBoardAnalyzer.Analysis lastGood;
     private long lastGoodAt = 0L;
 
     public void reset() {
+        boardSeen = false;
         stableFrameCount = 0;
         previousPieces = new ArrayList<>();
         lastGood = null;
@@ -98,6 +102,8 @@ public class ScanPipeline {
         } else {
             lastGood = null;
         }
+
+        boardSeen = result.board.detected;
 
         int strikerCount = result.striker != null ? 1 : 0;
         int coinCount = 0;

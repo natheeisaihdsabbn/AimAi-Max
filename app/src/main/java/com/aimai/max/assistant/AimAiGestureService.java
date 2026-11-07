@@ -18,6 +18,8 @@ public class AimAiGestureService extends AccessibilityService {
     private static final String TAG = "AimAiAutoPlay";
     private static final String GAME_PACKAGE = "com.miniclip.carrom";
     private static final long SCAN_INTERVAL_MS = 600L;
+    /** In the lobby and menus there is no board, so scanning that often only slows the game down. */
+    private static final long IDLE_SCAN_INTERVAL_MS = 2500L;
 
     private static volatile AimAiGestureService instance;
     private static volatile boolean gameForeground = false;
@@ -84,7 +86,7 @@ public class AimAiGestureService extends AccessibilityService {
             } else {
                 pipeline.reset();
             }
-            h.postDelayed(this, SCAN_INTERVAL_MS);
+            h.postDelayed(this, pipeline.boardSeen ? SCAN_INTERVAL_MS : IDLE_SCAN_INTERVAL_MS);
         }
     };
 

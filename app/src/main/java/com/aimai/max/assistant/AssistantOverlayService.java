@@ -245,12 +245,24 @@ public class AssistantOverlayService extends Service {
      * opaque, so the game would not react to taps. The full-screen drawing window therefore stays
      * invisible (0) while no board is on screen and at most 0.8 while it draws.
      */
+    private boolean overlayAttached = false;
+
+    /**
+     * The full-screen drawing window only exists while a board is on screen. In the lobby and menus it is
+     * removed completely, so it can never get between your finger and the game.
+     */
     private void setOverlayAlpha(float a) {
-        if (overlayRoot == null || guideLp == null || windowManager == null || a == overlayAlpha) return;
-        overlayAlpha = a;
-        guideLp.alpha = a;
+        if (overlayRoot == null || guideLp == null || windowManager == null) return;
+        boolean on = a > 0f;
+        if (on == overlayAttached) return;
+        guideLp.alpha = 0.8f;
         try {
-            windowManager.updateViewLayout(overlayRoot, guideLp);
+            if (on) {
+                windowManager.addView(overlayRoot, guideLp);
+            } else {
+                windowManager.removeView(overlayRoot);
+            }
+            overlayAttached = on;
         } catch (Exception ignored) {
         }
     }
@@ -998,10 +1010,8 @@ public class AssistantOverlayService extends Service {
         overlayRoot.addView(pathView, new android.widget.FrameLayout.LayoutParams(
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
                 android.widget.FrameLayout.LayoutParams.MATCH_PARENT));
-        guideParams.alpha = 0f;
-        overlayAlpha = 0f;
+        guideParams.alpha = 0.8f;
         guideLp = guideParams;
-        windowManager.addView(overlayRoot, guideParams);
         windowManager.addView(panel, params);
         applyGameVisibility();
     }
