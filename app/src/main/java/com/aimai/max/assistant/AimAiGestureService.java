@@ -149,11 +149,26 @@ public class AimAiGestureService extends AccessibilityService {
         if (p.equals("com.android.systemui")) return true;           // shade, volume, recents hints
         String lp = p.toLowerCase();
         if (lp.contains("inputmethod") || lp.contains("keyboard")) return true;
+        // Screen recorders, screenshot tools and game-booster bars float over the game while it keeps running.
+        if (lp.contains("record") || lp.contains("screencap") || lp.contains("screenshot")
+                || lp.contains("capture") || lp.contains("gamebooster") || lp.contains("gametools")
+                || lp.contains("gamelauncher")) return true;
         if (cls != null) {
             String c = cls.toString();
             if (c.startsWith("android.widget.Toast") || c.contains("InputMethod")) return true;
         }
         return false;
+    }
+
+    /**
+     * A small floating window (recorder button, chat bubble) reports a plain view class, not an Activity.
+     * Only a real screen change (an Activity or the home launcher) means the game was left.
+     */
+    private boolean looksLikeAppSwitch(CharSequence pkg, CharSequence cls) {
+        String p = pkg == null ? "" : pkg.toString().toLowerCase();
+        String c = cls == null ? "" : cls.toString().toLowerCase();
+        if (p.contains("launcher") || p.endsWith(".home") || c.contains("launcher")) return true;
+        return c.contains("activity");
     }
 
     private void setForeground(boolean active, CharSequence pkg) {
@@ -173,8 +188,11 @@ public class AimAiGestureService extends AccessibilityService {
         int t = e.getEventType();
         if (t != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence pkg = e.getPackageName();
-        if (isTransientWindow(pkg, e.getClassName())) return;
-        setForeground(GAME_PACKAGE.contentEquals(pkg), pkg);
+        CharSequence cls = e.getClassName();
+        if (isTransientWindow(pkg, cls)) return;
+        boolean isGame = GAME_PACKAGE.contentEquals(pkg);
+        if (!isGame && !looksLikeAppSwitch(pkg, cls)) return;
+        setForeground(isGame, pkg);
     }
 
     /**
