@@ -71,6 +71,17 @@ public class ScanPipeline {
         return null;
     }
 
+    /** Pixel x,y pairs to 0..1 screen fractions. */
+    private static float[] normalize(float[] pts, float w, float h) {
+        if (pts == null) return new float[0];
+        float[] out = new float[pts.length];
+        for (int i = 0; i + 1 < pts.length; i += 2) {
+            out[i] = pts[i] / w;
+            out[i + 1] = pts[i + 1] / h;
+        }
+        return out;
+    }
+
     public void process(Context ctx, Bitmap bmp) {
         long started = android.os.SystemClock.elapsedRealtime();
         CarromBoardAnalyzer.Analysis result = CarromBoardAnalyzer.analyze(bmp);
@@ -142,6 +153,20 @@ public class ScanPipeline {
                 guideIntent.putExtra("pocketY", shot.pocket.y / frameH);
                 guideIntent.putExtra("pocketRadius", shot.pocket.radius / frameW);
                 guideIntent.putExtra("cutAngle", shot.cutAngleDeg);
+                guideIntent.putExtra("bank", shot.bank);
+                guideIntent.putExtra("aimX", shot.aimX / frameW);
+                guideIntent.putExtra("aimY", shot.aimY / frameH);
+                guideIntent.putExtra("strikerPath", normalize(shot.strikerPath, frameW, frameH));
+                guideIntent.putExtra("coinPath", normalize(shot.coinPath, frameW, frameH));
+                float[] alts = new float[shot.alts.size() * 4];
+                for (int i = 0; i < shot.alts.size(); i++) {
+                    float[] alt = shot.alts.get(i);
+                    alts[i * 4] = alt[0] / frameW;
+                    alts[i * 4 + 1] = alt[1] / frameH;
+                    alts[i * 4 + 2] = alt[2] / frameW;
+                    alts[i * 4 + 3] = alt[3] / frameH;
+                }
+                guideIntent.putExtra("alts", alts);
                 guideIntent.putExtra("targetFound", true);
             } else {
                 guideIntent.putExtra("targetFound", false);

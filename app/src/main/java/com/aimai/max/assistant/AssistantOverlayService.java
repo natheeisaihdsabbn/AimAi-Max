@@ -37,6 +37,8 @@ public class AssistantOverlayService extends Service {
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
+    private ShotPathView pathView;
+    private float slideStartErr = 0f;
     private LinearLayout panel;
     private WindowManager.LayoutParams params;
     private boolean enabled = true;
@@ -94,6 +96,7 @@ public class AssistantOverlayService extends Service {
             }
 
             if (!intent.getBooleanExtra("isStriker", false)) {
+                if (pathView != null) pathView.clear();
                 aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                 aimGuideView.setGuideEnabled(false);
                 return;
@@ -108,16 +111,30 @@ public class AssistantOverlayService extends Service {
             float sliderY = intent.getFloatExtra("sliderY", 0f);
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
+            boolean bankShot = plannedShot && intent.getBooleanExtra("bank", false);
+            float aimX = intent.getFloatExtra("aimX", Float.NaN);
+            float aimY = intent.getFloatExtra("aimY", Float.NaN);
+            if (pathView != null) {
+                if (plannedShot) {
+                    pathView.setShot(bankShot, intent.getFloatArrayExtra("strikerPath"),
+                            intent.getFloatArrayExtra("coinPath"), intent.getFloatArrayExtra("alts"));
+                } else {
+                    pathView.clear();
+                }
+            }
 
             if (autoPlay && !waitingForSettle && boardStable && targetFound && plannedShot
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
-                float gx = intent.getFloatExtra("ghostX", x);
-                float gy = intent.getFloatExtra("ghostY", y);
+                // Straight and coin-bank shots aim at the ghost spot; a striker bank aims at the cushion point.
+                float gx = Float.isNaN(aimX) ? intent.getFloatExtra("ghostX", x) : aimX;
+                float gy = Float.isNaN(aimY) ? intent.getFloatExtra("ghostY", y) : aimY;
                 boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
                 float slideErr = Math.abs(px - x);
                 if (slideOn && slideErr > 0.008f) {
-                    if (slideErr <= 0.03f || sliderTries >= 8) {
+                    if (sliderTries == 0) slideStartErr = slideErr;
+                    boolean noProgress = sliderTries >= 2 && slideErr > slideStartErr * 0.75f;
+                    if (slideErr <= 0.03f || sliderTries >= 4 || noProgress) {
                         // Close enough (or sliding is not getting closer): stop sliding and plan the
                         // shot again from the place where the striker really stands.
                         settings().edit().putBoolean("slide_enabled", false).apply();
@@ -128,7 +145,7 @@ public class AssistantOverlayService extends Service {
                                 sliderY * size[1], size[0], size[1]);
                         sliderTries++;
                         lastSliderAt = now;
-                        hint("Moving striker " + sliderTries + "/8");
+                        hint("Moving striker " + sliderTries + "/4");
                     }
                 } else {
                     boolean strikerMoved = lastAutoStrikerX < 0f
@@ -166,8 +183,13 @@ public class AssistantOverlayService extends Service {
                 float pocketX = intent.getFloatExtra("pocketX", targetX);
                 float pocketY = intent.getFloatExtra("pocketY", targetY);
                 if (plannedShot) {
-                    aimGuideView.setGuide(px, y, ghostX, ghostY);
-                    aimGuideView.setShotRoute(ghostX, ghostY, pocketX, pocketY, true);
+                    if (bankShot) {
+                        // A bent route cannot be drawn by the straight guide; the path view draws it.
+                        aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
+                    } else {
+                        aimGuideView.setGuide(px, y, ghostX, ghostY);
+                        aimGuideView.setShotRoute(ghostX, ghostY, pocketX, pocketY, true);
+                    }
                 } else {
                     aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                     float[] contact = CarromPhysicsEngine.calculateCollisionContactXY(
@@ -184,7 +206,7 @@ public class AssistantOverlayService extends Service {
                 aimGuideView.setGuide(x, y, x, Math.max(0.05f, y - 0.25f));
             }
 
-            aimGuideView.setGuideEnabled(true);
+            aimGuideView.setGuideEnabled(!bankShot);
         }
     };
 
@@ -393,6 +415,10 @@ public class AssistantOverlayService extends Service {
             aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
             aimGuideView.setGuideEnabled(false);
             aimGuideView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
+        }
+        if (pathView != null) {
+            pathView.clear();
+            pathView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         }
     }
 
@@ -942,6 +968,23 @@ public class AssistantOverlayService extends Service {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
         }
         windowManager.addView(aimGuideView, guideParams);
+
+        pathView = new ShotPathView(this);
+        pathView.setScreenSize(size[0], size[1]);
+        WindowManager.LayoutParams pathParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                overlayType(),
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT);
+        if (Build.VERSION.SDK_INT >= 28) {
+            pathParams.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        windowManager.addView(pathView, pathParams);
         windowManager.addView(panel, params);
         applyGameVisibility();
     }
@@ -989,6 +1032,11 @@ public class AssistantOverlayService extends Service {
         if (panel != null && windowManager != null) {
             try { windowManager.removeView(panel); } catch (IllegalArgumentException ignored) {}
             panel = null;
+        }
+
+        if (pathView != null && windowManager != null) {
+            try { windowManager.removeView(pathView); } catch (IllegalArgumentException ignored) {}
+            pathView = null;
         }
 
         if (aimGuideView != null && windowManager != null) {
