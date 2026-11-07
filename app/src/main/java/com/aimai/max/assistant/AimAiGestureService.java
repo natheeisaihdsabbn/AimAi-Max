@@ -24,6 +24,8 @@ public class AimAiGestureService extends AccessibilityService {
     private static volatile boolean scanEnabled = false;
     /** Last real screenshot error (0 = none). The overlay shows a hint when this is set. */
     public static volatile int lastScanError = 0;
+    /** How long the shooting finger drag lasts. The overlay changes it for the Human play style. */
+    public static volatile int swipeDurationMs = 300;
 
     private HandlerThread scanThread;
     private Handler scanHandler;
@@ -225,7 +227,7 @@ public class AimAiGestureService extends AccessibilityService {
         path.moveTo(sx, sy);
         path.lineTo(ex, ey);
         GestureDescription g = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(path, 0, 300)).build();
+                .addStroke(new GestureDescription.StrokeDescription(path, 0, Math.max(120, swipeDurationMs))).build();
         boolean ok = s.dispatchGesture(g, new GestureResultCallback() {
             @Override public void onCompleted(GestureDescription d) {
                 Log.i(TAG, "Gesture completed from striker " + sx + "," + sy);

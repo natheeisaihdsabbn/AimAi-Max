@@ -110,7 +110,7 @@ public class AssistantOverlayService extends Service {
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
 
             if (autoPlay && !waitingForSettle && boardStable && targetFound && plannedShot
-                    && (lastAutoShotAt == 0L || now - lastAutoShotAt > MIN_SHOT_GAP_MS)
+                    && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
                 float gx = intent.getFloatExtra("ghostX", x);
                 float gy = intent.getFloatExtra("ghostY", y);
@@ -141,6 +141,9 @@ public class AssistantOverlayService extends Service {
                         int sh = size[1];
                         boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
                         float powerMul = settings().getInt("power_pct", 100) / 100f;
+                        // Human style drags the finger slower, and a little different every time.
+                        AimAiGestureService.swipeDurationMs = humanStyle()
+                                ? 480 + (int) (Math.random() * 220) : 300;
                         if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
                                 intent.getFloatExtra("shotPower", 0.5f), pullBack, powerMul)) {
                             waitingForSettle = true;
@@ -199,6 +202,15 @@ public class AssistantOverlayService extends Service {
             }
         }
     };
+
+    private boolean humanStyle() {
+        return "HUMAN".equals(settings().getString("play_style", "FAST"));
+    }
+
+    /** Human style waits longer between shots, like a person would. */
+    private long minShotGap() {
+        return humanStyle() ? 4200L : MIN_SHOT_GAP_MS;
+    }
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density);
@@ -341,7 +353,7 @@ public class AssistantOverlayService extends Service {
         }
     }
 
-    private TextView bubble;
+    private ImageView bubble;
     private final android.content.BroadcastReceiver gameStateReceiver = new android.content.BroadcastReceiver() {
         @Override public void onReceive(android.content.Context context, Intent intent) {
             gameForeground = intent.getBooleanExtra("foreground", false);
@@ -405,7 +417,7 @@ public class AssistantOverlayService extends Service {
             if (bubble != null) {
                 boolean stale = gameForeground
                         && android.os.SystemClock.elapsedRealtime() - lastScanAt > 3500L;
-                bubble.setText(stale ? "!" : "A");
+                bubble.setAlpha(stale ? 0.45f : 1f);
                 if (stale && aimGuideView != null) {
                     aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
                     aimGuideView.setGuideEnabled(false);
@@ -627,6 +639,34 @@ public class AssistantOverlayService extends Service {
         });
         col.addView(switchRow("AUTO PLAY", autoSwitch));
 
+        col.addView(sectionTitle("PLAY STYLE"));
+        LinearLayout styleRow = new LinearLayout(this);
+        final String[] playKeys = {"FAST", "HUMAN"};
+        final String[] playNames = {"Fast", "Human"};
+        final TextView[] playButtons = new TextView[2];
+        String savedPlay = settings().getString("play_style", "FAST");
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            TextView b = label(playNames[i], 13, Color.WHITE, false);
+            b.setGravity(Gravity.CENTER);
+            b.setBackground(shape(playKeys[i].equals(savedPlay) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            b.setOnClickListener(v -> {
+                settings().edit().putString("play_style", playKeys[index]).apply();
+                for (int k = 0; k < 2; k++) {
+                    playButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                }
+            });
+            playButtons[i] = b;
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            styleRow.addView(b, bp);
+        }
+        col.addView(styleRow);
+        TextView styleHint = label("Fast shoots again quickly. Human waits longer and drags the finger slower.", 11,
+                Color.rgb(135, 140, 155), false);
+        styleHint.setPadding(dp(2), dp(2), 0, 0);
+        col.addView(styleHint);
+
         col.addView(sectionTitle("SWIPE DIRECTION"));
         LinearLayout swipeRow = new LinearLayout(this);
         final String[] swipeKeys = {"FORWARD", "PULL"};
@@ -771,11 +811,13 @@ public class AssistantOverlayService extends Service {
     private void createPanel() {
         aimGuideView.setGuideEnabled(false);
 
-        bubble = label("A", 21);
-        bubble.setGravity(Gravity.CENTER);
-        bubble.setTypeface(null, Typeface.BOLD);
-        bubble.setTextColor(Color.WHITE);
+        // The floating button shows the app logo, clipped to a circle with a thin accent ring.
+        bubble = new ImageView(this);
+        bubble.setImageResource(R.drawable.aimai_logo);
+        bubble.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bubble.setPadding(dp(2), dp(2), dp(2), dp(2));
         bubble.setBackground(shape(accent, 28));
+        bubble.setClipToOutline(true);
         WindowManager.LayoutParams bubbleParams = new WindowManager.LayoutParams(
                 dp(54), dp(54),
                 overlayType(),
