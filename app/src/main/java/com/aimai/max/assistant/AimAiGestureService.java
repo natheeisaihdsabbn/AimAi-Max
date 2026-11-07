@@ -239,6 +239,28 @@ public class AimAiGestureService extends AccessibilityService {
         return ok;
     }
 
+    /**
+     * Slides the striker along the baseline: the finger goes down on the slider knob (its x is the same
+     * as the striker's x) and is dragged sideways to the wanted x. All values are real-screen pixels.
+     */
+    public static boolean dragSlider(float fromX, float toX, float y, int w, int h) {
+        AimAiGestureService s = instance;
+        if (s == null || Build.VERSION.SDK_INT < 24 || !gameForeground) {
+            Log.w(TAG, "Slider drag rejected: game not foreground or service unavailable");
+            return false;
+        }
+        float fx = clamp(fromX, 2, w - 2), tx = clamp(toX, 2, w - 2), fy = clamp(y, 2, h - 2);
+        if (Math.abs(tx - fx) < 6f) return false;
+        Path path = new Path();
+        path.moveTo(fx, fy);
+        path.lineTo(tx, fy);
+        GestureDescription g = new GestureDescription.Builder()
+                .addStroke(new GestureDescription.StrokeDescription(path, 0, 450)).build();
+        boolean ok = s.dispatchGesture(g, null, null);
+        Log.i(TAG, "dragSlider accepted=" + ok + " from=" + fx + " to=" + tx + " y=" + fy);
+        return ok;
+    }
+
     private static float clamp(float v, float a, float b) { return Math.max(a, Math.min(b, v)); }
 
     @Override public void onInterrupt() { Log.w(TAG, "Accessibility interrupted"); }

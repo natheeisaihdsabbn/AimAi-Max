@@ -12,6 +12,8 @@ import java.util.List;
 public class ScanPipeline {
 
     private static final long HOLD_LAST_MS = 1500L;
+    /** The game's striker slider sits this far (in board widths) below the bottom edge of the board. */
+    private static final float SLIDER_BELOW_BOARD = 0.368f;
 
     private int stableFrameCount = 0;
     private List<float[]> previousPieces = new ArrayList<>();
@@ -113,10 +115,17 @@ public class ScanPipeline {
         CarromBoardAnalyzer.Piece striker = result.striker;
         if (striker != null && result.board.detected) {
             CarromBoardAnalyzer.PieceType wanted = wantedCoins(ctx, bmp);
-            CarromShotPlanner.Shot shot = CarromShotPlanner.plan(result, wanted);
+            boolean slide = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
+                    .getBoolean("slide_enabled", true);
+            CarromShotPlanner.Shot shot = slide
+                    ? CarromShotPlanner.planBest(result, wanted)
+                    : CarromShotPlanner.plan(result, wanted);
             guideIntent.putExtra("isStriker", true);
             guideIntent.putExtra("pieceX", striker.x / frameW);
             guideIntent.putExtra("pieceY", striker.y / frameH);
+            guideIntent.putExtra("plannedX", (shot.valid ? shot.strikerX : striker.x) / frameW);
+            guideIntent.putExtra("sliderY",
+                    (result.board.bottom + SLIDER_BELOW_BOARD * result.board.width()) / frameH);
             guideIntent.putExtra("strikerRadius", striker.radius / frameW);
             guideIntent.putExtra("strikerRadiusX", striker.radius / frameW);
             guideIntent.putExtra("strikerRadiusY", striker.radius / frameH);

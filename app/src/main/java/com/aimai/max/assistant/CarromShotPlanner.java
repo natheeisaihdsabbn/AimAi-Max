@@ -13,6 +13,9 @@ public final class CarromShotPlanner {
         public boolean valid;
         public Piece target;
         public Pocket pocket;
+        /** Where the striker must stand on the baseline for this shot (screen pixels). */
+        public float strikerX;
+        public float strikerY;
         public float ghostX;
         public float ghostY;
         public float contactX;
@@ -28,23 +31,71 @@ public final class CarromShotPlanner {
         public int blockers;
     }
 
-    /**
-     * Picks the best shot. A crowded board often has no completely clear shot, so blocked shots are
-     * allowed but cost extra; the cheapest one wins. If nothing fits, the nearest wanted coin is
-     * aimed at directly.
-     */
+    /** Best shot from the place where the striker stands right now. */
     public static Shot plan(Analysis a, PieceType wanted) {
+        if (a == null || a.striker == null || !a.board.detected) {
+            return new Shot();
+        }
+        return planFrom(a, wanted, a.striker.x, a.striker.y);
+    }
+
+    /**
+     * Tries many places along the striker baseline (the striker can slide left and right) and keeps
+     * the cheapest shot. Places where a coin already sits are skipped.
+     */
+    public static Shot planBest(Analysis a, PieceType wanted) {
+        Shot best = plan(a, wanted);
+        if (a == null || a.striker == null || !a.board.detected) {
+            return best;
+        }
+        Piece s = a.striker;
+        float bw = a.board.width();
+        float minX = a.board.left + 0.2265f * bw;
+        float maxX = a.board.left + 0.772f * bw;
+        int steps = 12;
+        for (int i = 0; i <= steps; i++) {
+            float x = minX + (maxX - minX) * i / steps;
+            boolean free = true;
+            for (Piece o : a.pieces) {
+                if (o == s) {
+                    continue;
+                }
+                float dx = o.x - x;
+                float dy = o.y - s.y;
+                if (Math.sqrt(dx * dx + dy * dy) < o.radius + s.radius) {
+                    free = false;
+                    break;
+                }
+            }
+            if (!free) {
+                continue;
+            }
+            Shot c = planFrom(a, wanted, x, s.y);
+            if (c.valid && (!best.valid || c.score < best.score)) {
+                best = c;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Picks the best shot for a striker standing at (stX, stY). A crowded board often has no completely
+     * clear shot, so blocked shots are allowed but cost extra; the cheapest one wins. If nothing fits,
+     * the nearest wanted coin is aimed at directly.
+     */
+    private static Shot planFrom(Analysis a, PieceType wanted, float stX, float stY) {
         Shot best = new Shot();
         if (a == null || a.striker == null || !a.board.detected) {
             return best;
         }
 
-        Piece s = a.striker;
+        Piece real = a.striker;
+        float sr = real.radius;
         float bestScore = Float.MAX_VALUE;
         float boardW = a.board.width();
 
         for (Piece t : a.pieces) {
-            if (t == s || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) {
+            if (t == real || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) {
                 continue;
             }
             if (wanted != null && t.type != wanted && t.type != PieceType.QUEEN) {
@@ -61,16 +112,16 @@ public final class CarromShotPlanner {
                 float ux = tx / tLen;
                 float uy = ty / tLen;
 
-                float gx = t.x - ux * (t.radius + s.radius);
-                float gy = t.y - uy * (t.radius + s.radius);
+                float gx = t.x - ux * (t.radius + sr);
+                float gy = t.y - uy * (t.radius + sr);
 
-                if (gx < a.board.left + s.radius || gx > a.board.right - s.radius
-                        || gy < a.board.top + s.radius || gy > a.board.bottom - s.radius) {
+                if (gx < a.board.left + sr || gx > a.board.right - sr
+                        || gy < a.board.top + sr || gy > a.board.bottom - sr) {
                     continue;
                 }
 
-                float sx = gx - s.x;
-                float sy = gy - s.y;
+                float sx = gx - stX;
+                float sy = gy - stY;
                 float sLen = (float) Math.sqrt(sx * sx + sy * sy);
                 if (sLen < 1f) {
                     continue;
@@ -85,10 +136,10 @@ public final class CarromShotPlanner {
 
                 int blockers = 0;
                 for (Piece o : a.pieces) {
-                    if (o == t || o == s) {
+                    if (o == t || o == real) {
                         continue;
                     }
-                    if (segDist(o.x, o.y, s.x, s.y, gx, gy) < o.radius + s.radius * 0.95f) {
+                    if (segDist(o.x, o.y, stX, stY, gx, gy) < o.radius + sr * 0.95f) {
                         blockers++;
                     }
                     if (segDist(o.x, o.y, t.x, t.y, p.x, p.y) < o.radius + t.radius * 0.95f) {
@@ -99,7 +150,9 @@ public final class CarromShotPlanner {
                 float score = sLen + tLen * 1.5f + (1f - cos) * boardW * 1.5f + blockers * boardW * 1.0f;
                 if (score < bestScore) {
                     bestScore = score;
-                    fill(best, s, t, p, gx, gy, ux, uy, vx, vy, cos, sLen, tLen, boardW);
+                    fill(best, sr, t, p, gx, gy, ux, uy, vx, vy, cos, sLen, tLen, boardW);
+                    best.strikerX = stX;
+                    best.strikerY = stY;
                     best.score = score;
                     best.blockers = blockers;
                 }
@@ -107,12 +160,12 @@ public final class CarromShotPlanner {
         }
 
         if (!best.valid) {
-            aimNearest(best, a, s, wanted, boardW);
+            aimNearest(best, a, stX, stY, sr, wanted, boardW);
         }
         return best;
     }
 
-    private static void fill(Shot best, Piece s, Piece t, Pocket p, float gx, float gy,
+    private static void fill(Shot best, float sr, Piece t, Pocket p, float gx, float gy,
                              float ux, float uy, float vx, float vy, float cos,
                              float sLen, float tLen, float boardW) {
         best.valid = true;
@@ -120,8 +173,8 @@ public final class CarromShotPlanner {
         best.pocket = p;
         best.ghostX = gx;
         best.ghostY = gy;
-        best.contactX = gx + ux * s.radius;
-        best.contactY = gy + uy * s.radius;
+        best.contactX = gx + ux * sr;
+        best.contactY = gy + uy * sr;
         float c = Math.max(-1f, Math.min(1f, cos));
         best.cutAngleDeg = (float) Math.toDegrees(Math.acos(c));
         float rx = vx - c * ux;
@@ -140,17 +193,19 @@ public final class CarromShotPlanner {
     }
 
     /** Last resort: hit the nearest wanted coin head-on and let it go towards its closest pocket. */
-    private static void aimNearest(Shot best, Analysis a, Piece s, PieceType wanted, float boardW) {
+    private static void aimNearest(Shot best, Analysis a, float stX, float stY, float sr,
+                                   PieceType wanted, float boardW) {
+        Piece real = a.striker;
         Piece near = null;
         float nearD = Float.MAX_VALUE;
         for (Piece t : a.pieces) {
-            if (t == s || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) {
+            if (t == real || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) {
                 continue;
             }
             if (wanted != null && t.type != wanted && t.type != PieceType.QUEEN) {
                 continue;
             }
-            float dx = t.x - s.x, dy = t.y - s.y;
+            float dx = t.x - stX, dy = t.y - stY;
             float d = (float) Math.sqrt(dx * dx + dy * dy);
             if (d < nearD && d > 1f) {
                 nearD = d;
@@ -173,10 +228,10 @@ public final class CarromShotPlanner {
         if (pk == null) {
             return;
         }
-        float vx = (near.x - s.x) / nearD;
-        float vy = (near.y - s.y) / nearD;
-        float gx = near.x - vx * (near.radius + s.radius);
-        float gy = near.y - vy * (near.radius + s.radius);
+        float vx = (near.x - stX) / nearD;
+        float vy = (near.y - stY) / nearD;
+        float gx = near.x - vx * (near.radius + sr);
+        float gy = near.y - vy * (near.radius + sr);
         float ux = pk.x - near.x, uy = pk.y - near.y;
         float uLen = (float) Math.sqrt(ux * ux + uy * uy);
         if (uLen < 1f) {
@@ -185,8 +240,11 @@ public final class CarromShotPlanner {
         ux /= uLen;
         uy /= uLen;
         float cos = vx * ux + vy * uy;
-        fill(best, s, near, pk, gx, gy, ux, uy, vx, vy, cos, nearD, uLen, boardW);
-        best.score = nearD;
+        fill(best, sr, near, pk, gx, gy, ux, uy, vx, vy, cos, nearD, uLen, boardW);
+        best.strikerX = stX;
+        best.strikerY = stY;
+        // Always worse than any real planned shot, so sliding never prefers a head-on fallback.
+        best.score = nearD + boardW * 100f;
         best.blockers = 99;
     }
 

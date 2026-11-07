@@ -32,6 +32,8 @@ public class AssistantOverlayService extends Service {
     private static final long SETTLE_MIN_MS = 2500L;
     /** If the board never reports a change after a shot, allow a retry after this long. */
     private static final long SETTLE_TIMEOUT_MS = 15000L;
+    /** Wait this long after sliding the striker before looking at the board again. */
+    private static final long SLIDER_GAP_MS = 1300L;
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
@@ -44,6 +46,8 @@ public class AssistantOverlayService extends Service {
     private boolean autoPlay = false;
     private long lastAutoShotAt = 0L;
     private float lastAutoStrikerX = -1f, lastAutoStrikerY = -1f;
+    private long lastSliderAt = 0L;
+    private int sliderTries = 0;
     private android.content.SharedPreferences.OnSharedPreferenceChangeListener liveGuidePreferencesListener;
 
     private boolean boardReceiverRegistered = false;
@@ -99,6 +103,9 @@ public class AssistantOverlayService extends Service {
             aimGuideView.setBodyRadius(intent.getFloatExtra("strikerRadius", 0f));
             aimGuideView.setPocketRadius(intent.getFloatExtra("pocketRadius", 0f));
             float y = intent.getFloatExtra("pieceY", 0.8f);
+            // Where the striker should stand for the best shot (it can slide along the baseline).
+            float px = intent.getFloatExtra("plannedX", x);
+            float sliderY = intent.getFloatExtra("sliderY", 0f);
             boolean targetFound = intent.getBooleanExtra("targetFound", false);
             boolean plannedShot = intent.getBooleanExtra("shotFound", false);
 
@@ -107,22 +114,43 @@ public class AssistantOverlayService extends Service {
                     && AimAiGestureService.isConnected()) {
                 float gx = intent.getFloatExtra("ghostX", x);
                 float gy = intent.getFloatExtra("ghostY", y);
-                boolean strikerMoved = lastAutoStrikerX < 0f
-                        || Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f;
-                if (strikerMoved) {
-                    // Same real-screen space the capture used, so the swipe starts on the striker.
-                    int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
-                    int sw = size[0];
-                    int sh = size[1];
-                    boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
-                    float powerMul = settings().getInt("power_pct", 100) / 100f;
-                    if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
-                            intent.getFloatExtra("shotPower", 0.5f), pullBack, powerMul)) {
-                        waitingForSettle = true;
-                        sawMotionAfterShot = false;
-                        lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
-                        lastAutoStrikerX = x;
-                        lastAutoStrikerY = y;
+                boolean wantSlide = settings().getBoolean("slide_enabled", true)
+                        && sliderY > 0f && Math.abs(px - x) > 0.02f;
+                if (wantSlide) {
+                    // First move the striker to the best place, then scan again before shooting.
+                    if (now - lastSliderAt > SLIDER_GAP_MS) {
+                        if (sliderTries < 3) {
+                            int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+                            if (AimAiGestureService.dragSlider(x * size[0], px * size[0],
+                                    sliderY * size[1], size[0], size[1])) {
+                                sliderTries++;
+                                lastSliderAt = now;
+                            }
+                        } else {
+                            // Sliding did not work this turn: shoot from where the striker stands.
+                            settings().edit().putBoolean("slide_enabled", false).apply();
+                        }
+                    }
+                } else {
+                    boolean strikerMoved = lastAutoStrikerX < 0f
+                            || Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f;
+                    if (strikerMoved) {
+                        // Same real-screen space the capture used, so the swipe starts on the striker.
+                        int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+                        int sw = size[0];
+                        int sh = size[1];
+                        boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
+                        float powerMul = settings().getInt("power_pct", 100) / 100f;
+                        if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
+                                intent.getFloatExtra("shotPower", 0.5f), pullBack, powerMul)) {
+                            waitingForSettle = true;
+                            sawMotionAfterShot = false;
+                            lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
+                            lastAutoStrikerX = x;
+                            lastAutoStrikerY = y;
+                            sliderTries = 0;
+                            settings().edit().putBoolean("slide_enabled", true).apply();
+                        }
                     }
                 }
             }
@@ -135,7 +163,7 @@ public class AssistantOverlayService extends Service {
                 float pocketX = intent.getFloatExtra("pocketX", targetX);
                 float pocketY = intent.getFloatExtra("pocketY", targetY);
                 if (plannedShot) {
-                    aimGuideView.setGuide(x, y, ghostX, ghostY);
+                    aimGuideView.setGuide(px, y, ghostX, ghostY);
                     aimGuideView.setShotRoute(ghostX, ghostY, pocketX, pocketY, true);
                 } else {
                     aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
@@ -219,6 +247,8 @@ public class AssistantOverlayService extends Service {
         super.onCreate();
         android.content.SharedPreferences prefs =
                 getSharedPreferences("aimai_settings", MODE_PRIVATE);
+        // A new session always starts with striker sliding allowed.
+        prefs.edit().putBoolean("slide_enabled", true).apply();
         String[] savedStyles = {
                 "FOCUS", "GLOW", "FLOW", "RAINBOW", "PULSE", "AURORA"
         };
@@ -321,6 +351,8 @@ public class AssistantOverlayService extends Service {
             lastAutoShotAt = 0L;
             lastAutoStrikerX = -1f;
             lastAutoStrikerY = -1f;
+            sliderTries = 0;
+            lastSliderAt = 0L;
             applyGameVisibility();
             android.util.Log.i("AimAiAutoPlay", "Overlay foreground gate=" + gameForeground);
         }
@@ -589,6 +621,9 @@ public class AssistantOverlayService extends Service {
             lastAutoShotAt = 0L;
             lastAutoStrikerX = -1f;
             lastAutoStrikerY = -1f;
+            sliderTries = 0;
+            lastSliderAt = 0L;
+            settings().edit().putBoolean("slide_enabled", true).apply();
         });
         col.addView(switchRow("AUTO PLAY", autoSwitch));
 
