@@ -139,6 +139,7 @@ public class AimGuideView extends View {
         paint.setShader(null);
         paint.clearShadowLayer();
         paint.setStrokeWidth(stroke);
+        paint.setPathEffect(smooth ? new android.graphics.CornerPathEffect(46f) : null);
         android.graphics.Path path = new android.graphics.Path();
         int i = 0;
         while (i + 1 < data.length) {

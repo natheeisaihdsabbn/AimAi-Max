@@ -97,7 +97,7 @@ public final class ShotSearch {
                 result.tried++;
                 float score = 100f * r.minePotted + 60f * r.queenPotted - 120f * r.otherPotted
                         - (r.strikerPotted ? 500f : 0f)
-                        - 0.02f * cand.score - 2f * level;
+                        - 0.02f * cand.score + 3f * level;
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
@@ -153,11 +153,6 @@ public final class ShotSearch {
         for (int i = 0; i < r.discs.size(); i++) {
             CarromSim.Disc d = r.discs.get(i);
             if (d.pathCount < 2) continue;
-            if (d.owner != CarromSim.STRIKER) {
-                // only the coin this shot is aimed at gets a line
-                float tx0 = d.path[0] - s.target.x, ty0 = d.path[1] - s.target.y;
-                if (tx0 * tx0 + ty0 * ty0 > 9f) continue;
-            }
             float mx = d.path[(d.pathCount - 1) * 2] - d.path[0];
             float my = d.path[(d.pathCount - 1) * 2 + 1] - d.path[1];
             if (mx * mx + my * my < 22f * 22f && d.owner != CarromSim.STRIKER) continue;
