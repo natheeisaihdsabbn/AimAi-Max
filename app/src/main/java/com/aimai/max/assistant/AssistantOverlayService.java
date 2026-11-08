@@ -670,32 +670,25 @@ public class AssistantOverlayService extends Service {
         col.addView(sectionTitle("PLAY STYLE"));
         LinearLayout styleRow = new LinearLayout(this);
         final String[] playKeys = {"FAST", "HUMAN"};
-        final String[] playNames = {"Fast", "Human"};
-        final TextView[] playButtons = new TextView[2];
+        final PlayStyleCardView[] playCards = new PlayStyleCardView[2];
         String savedPlay = settings().getString("play_style", "FAST");
         for (int i = 0; i < 2; i++) {
             final int index = i;
-            TextView b = label(playNames[i], 13, Color.WHITE, false);
-            b.setGravity(Gravity.CENTER);
-            AimAiUiStyle.chip(b, playKeys[i].equals(savedPlay));
-            b.setOnClickListener(v -> {
+            PlayStyleCardView card = new PlayStyleCardView(this, i == 0 ? "Fast" : "Human", i == 0, accent);
+            card.setSelectedState(playKeys[i].equals(savedPlay));
+            card.setOnClickListener(v -> {
                 settings().edit().putString("play_style", playKeys[index]).apply();
                 for (int k = 0; k < 2; k++) {
-                    AimAiUiStyle.chip(playButtons[k], k == index);
+                    playCards[k].setSelectedState(k == index);
                 }
             });
-            playButtons[i] = b;
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
-            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
-            styleRow.addView(b, bp);
+            playCards[i] = card;
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(66), 1f);
+            cp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            styleRow.addView(card, cp);
         }
         col.addView(styleRow);
-        TextView styleHint = label("Fast shoots again quickly. Human waits longer and drags the finger slower.", 11,
-                Color.rgb(135, 140, 155), false);
-        styleHint.setPadding(dp(2), dp(2), 0, 0);
-        col.addView(styleHint);
 
-        // ---- QUEUE: same layout as the reference (Auto Queue, status, game, max stake)
         col.addView(sectionTitle("QUEUE"));
         Switch queueSwitch = accentSwitch(settings().getBoolean("auto_queue", false));
         queueSwitch.setOnCheckedChangeListener((b, checked) ->
@@ -738,7 +731,6 @@ public class AssistantOverlayService extends Service {
         }
         col.addView(gameRow);
 
-        // Max Stake: a header row that opens a grid of stakes
         final TextView stakeHeaderValue = label(settings().getString("queue_stake", "500"), 12,
                 Color.rgb(170, 166, 235), false);
         final TextView stakeChevron = label("\u25BC", 10, Color.rgb(135, 140, 155), false);
@@ -785,73 +777,6 @@ public class AssistantOverlayService extends Service {
             stakeGrid.setVisibility(open ? View.GONE : View.VISIBLE);
             stakeChevron.setText(open ? "\u25BC" : "\u25B2");
         });
-
-        col.addView(sectionTitle("SWIPE DIRECTION"));
-        LinearLayout swipeRow = new LinearLayout(this);
-        final String[] swipeKeys = {"FORWARD", "PULL"};
-        final String[] swipeNames = {"Drag forward", "Pull back"};
-        final TextView[] swipeButtons = new TextView[2];
-        String savedSwipe = settings().getString("swipe_mode", "FORWARD");
-        for (int i = 0; i < 2; i++) {
-            final int index = i;
-            TextView b = label(swipeNames[i], 13, Color.WHITE, false);
-            b.setGravity(Gravity.CENTER);
-            AimAiUiStyle.chip(b, swipeKeys[i].equals(savedSwipe));
-            b.setOnClickListener(v -> {
-                settings().edit().putString("swipe_mode", swipeKeys[index]).apply();
-                for (int k = 0; k < 2; k++) {
-                    AimAiUiStyle.chip(swipeButtons[k], k == index);
-                }
-            });
-            swipeButtons[i] = b;
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
-            bp.setMargins(dp(3), dp(3), dp(3), dp(3));
-            swipeRow.addView(b, bp);
-        }
-        col.addView(swipeRow);
-        TextView swipeHint = label("Drag forward is right for Carrom Disc Pool. If the striker goes the wrong way, switch.", 11,
-                Color.rgb(135, 140, 155), false);
-        swipeHint.setPadding(dp(2), dp(2), 0, 0);
-        col.addView(swipeHint);
-
-        col.addView(sectionTitle("POWER"));
-        LinearLayout powerRow = new LinearLayout(this);
-        powerRow.setGravity(Gravity.CENTER_VERTICAL);
-        final TextView powerValue = label(settings().getInt("power_pct", 100) + "%", 16, Color.WHITE, true);
-        powerValue.setGravity(Gravity.CENTER);
-        TextView minus = label("−", 22, Color.WHITE, true);
-        minus.setGravity(Gravity.CENTER);
-        AimAiUiStyle.chip(minus, false);
-        TextView plus = label("+", 22, Color.WHITE, true);
-        plus.setGravity(Gravity.CENTER);
-        AimAiUiStyle.chip(plus, false);
-        minus.setOnClickListener(v -> {
-            int value = Math.max(30, settings().getInt("power_pct", 100) - 10);
-            settings().edit().putInt("power_pct", value).apply();
-            powerValue.setText(value + "%");
-        });
-        plus.setOnClickListener(v -> {
-            int value = Math.min(300, settings().getInt("power_pct", 100) + 10);
-            settings().edit().putInt("power_pct", value).apply();
-            powerValue.setText(value + "%");
-        });
-        powerRow.addView(minus, new LinearLayout.LayoutParams(dp(56), dp(44)));
-        powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        powerRow.addView(plus, new LinearLayout.LayoutParams(dp(56), dp(44)));
-        col.addView(powerRow);
-        TextView powerHint = label("Shot too weak? Press + . Too hard? Press − .", 11,
-                Color.rgb(135, 140, 155), false);
-        powerHint.setPadding(dp(2), dp(2), 0, 0);
-        col.addView(powerHint);
-
-        col.addView(sectionTitle("STATUS"));
-        col.addView(label("Accessibility: " + (AimAiGestureService.isConnected() ? "connected" : "not connected"),
-                13, Color.rgb(190, 194, 208), false));
-        TextView hint = label("Takes a shot only when the board has stopped moving, then scans again "
-                + "and plays the next shot. It pauses whenever the game is not on screen.",
-                12, Color.rgb(135, 140, 155), false);
-        hint.setPadding(0, dp(10), 0, 0);
-        col.addView(hint);
         return col;
     }
 
@@ -873,6 +798,56 @@ public class AssistantOverlayService extends Service {
             settings().edit().putBoolean("scan_stats", checked).apply();
             statsView.setVisibility(checked ? View.VISIBLE : View.GONE);
         });
+
+        col.addView(sectionTitle("SWIPE DIRECTION"));
+        LinearLayout swipeRow = new LinearLayout(this);
+        final String[] swipeKeys = {"FORWARD", "PULL"};
+        final String[] swipeNames = {"Drag forward", "Pull back"};
+        final TextView[] swipeButtons = new TextView[2];
+        String savedSwipe = settings().getString("swipe_mode", "FORWARD");
+        for (int i = 0; i < 2; i++) {
+            final int index = i;
+            TextView sw = label(swipeNames[i], 13, Color.WHITE, false);
+            sw.setGravity(Gravity.CENTER);
+            AimAiUiStyle.chip(sw, swipeKeys[i].equals(savedSwipe));
+            sw.setOnClickListener(v -> {
+                settings().edit().putString("swipe_mode", swipeKeys[index]).apply();
+                for (int k = 0; k < 2; k++) {
+                    AimAiUiStyle.chip(swipeButtons[k], k == index);
+                }
+            });
+            swipeButtons[i] = sw;
+            LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            swp.setMargins(dp(3), dp(3), dp(3), dp(3));
+            swipeRow.addView(sw, swp);
+        }
+        col.addView(swipeRow);
+
+        col.addView(sectionTitle("POWER"));
+        LinearLayout powerRow = new LinearLayout(this);
+        powerRow.setGravity(Gravity.CENTER_VERTICAL);
+        final TextView powerValue = label(settings().getInt("power_pct", 100) + "%", 16, Color.WHITE, true);
+        powerValue.setGravity(Gravity.CENTER);
+        TextView minus = label("\u2212", 22, Color.WHITE, true);
+        minus.setGravity(Gravity.CENTER);
+        AimAiUiStyle.chip(minus, false);
+        TextView plus = label("+", 22, Color.WHITE, true);
+        plus.setGravity(Gravity.CENTER);
+        AimAiUiStyle.chip(plus, false);
+        minus.setOnClickListener(v -> {
+            int value = Math.max(30, settings().getInt("power_pct", 100) - 10);
+            settings().edit().putInt("power_pct", value).apply();
+            powerValue.setText(value + "%");
+        });
+        plus.setOnClickListener(v -> {
+            int value = Math.min(300, settings().getInt("power_pct", 100) + 10);
+            settings().edit().putInt("power_pct", value).apply();
+            powerValue.setText(value + "%");
+        });
+        powerRow.addView(minus, new LinearLayout.LayoutParams(dp(56), dp(44)));
+        powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        powerRow.addView(plus, new LinearLayout.LayoutParams(dp(56), dp(44)));
+        col.addView(powerRow);
 
         col.addView(sectionTitle("MY COINS"));
         LinearLayout coinRow = new LinearLayout(this);
@@ -897,10 +872,6 @@ public class AssistantOverlayService extends Service {
             coinRow.addView(b, bp);
         }
         col.addView(coinRow);
-        TextView coinHint = label("Auto reads your coin colour from the icon next to your name.", 11,
-                Color.rgb(135, 140, 155), false);
-        coinHint.setPadding(dp(2), dp(2), 0, dp(6));
-        col.addView(coinHint);
 
         col.addView(sectionTitle("GUIDE"));
         TextView reset = label("Reset guide settings", 13, Color.rgb(224, 128, 96), false);
