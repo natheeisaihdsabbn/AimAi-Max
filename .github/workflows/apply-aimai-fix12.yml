@@ -1,0 +1,87 @@
+name: Apply AimAi Max one-line shot fix
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix12.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: One line per shot, Auto Play never gets stuck
+        run: |
+          python3 - <<'PYEND'
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          def edit(name, pairs):
+              path = d + name
+              src = open(path, encoding="utf-8").read()
+              for old, new, times in pairs:
+                  assert src.count(old) == times, name + ": anchor found " + str(src.count(old)) + " times, nothing changed: " + old[:70]
+              for old, new, times in pairs:
+                  src = src.replace(old, new)
+              open(path, "w", encoding="utf-8").write(src)
+              print("edited", name)
+
+          s = open(d + "ShotSearch.java", encoding="utf-8").read()
+          if "only the coin this shot is aimed at" in s:
+              print("already applied")
+              raise SystemExit(0)
+
+          # 1) draw only the striker and the one coin this shot is aimed at
+          edit("ShotSearch.java", [
+              ("            if (d.pathCount < 2) continue;\n",
+               "            if (d.pathCount < 2) continue;\n"
+               "            if (d.owner != CarromSim.STRIKER) {\n"
+               "                // only the coin this shot is aimed at gets a line\n"
+               "                float tx0 = d.path[0] - s.target.x, ty0 = d.path[1] - s.target.y;\n"
+               "                if (tx0 * tx0 + ty0 * ty0 > 9f) continue;\n"
+               "            }\n", 1),
+          ])
+
+          # 2) Auto Play: if no shot fits where the striker stands, still shoot at the best coin; Visible Search off by default
+          edit("AssistantOverlayService.java", [
+              ('                } else if (curFound) {\n'
+               '                    float aimX = intent.getFloatExtra("curAimX", x);\n'
+               '                    float aimY = intent.getFloatExtra("curAimY", y);\n',
+               '                } else if (curFound || bestFound) {\n'
+               '                    float aimX = curFound ? intent.getFloatExtra("curAimX", x) : intent.getFloatExtra("bestGhostX", x);\n'
+               '                    float aimY = curFound ? intent.getFloatExtra("curAimY", y) : intent.getFloatExtra("bestGhostY", y);\n', 1),
+              ('intent.getFloatExtra("curPower", 0.6f), pullBack, powerMul)) {',
+               'intent.getFloatExtra(curFound ? "curPower" : "bestPower", 0.8f), pullBack, powerMul)) {', 1),
+              ('settings().getBoolean("visible_search", true)',
+               'settings().getBoolean("visible_search2", false)', 2),
+              ('putBoolean("visible_search", checked)',
+               'putBoolean("visible_search2", checked)', 1),
+          ])
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "One line per shot; Auto Play shoots even when no shot fits the current spot; Visible Search off by default"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
