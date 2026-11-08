@@ -1,0 +1,106 @@
+name: Apply AimAi Max reference lines and faster shots
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix15*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Lines like the reference and faster shots
+        run: |
+          python3 - <<'PYEND'
+          import re
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          def read(name):
+              return open(d + name, encoding="utf-8").read()
+
+          def write(name, text):
+              open(d + name, "w", encoding="utf-8").write(text)
+
+          # 1) draw every coin that moves in the chosen shot (one line per coin), like the reference
+          src = read("ShotSearch.java")
+          block = (
+              "            if (d.owner != CarromSim.STRIKER) {\n"
+              "                // only the coin this shot is aimed at gets a line\n"
+              "                float tx0 = d.path[0] - s.target.x, ty0 = d.path[1] - s.target.y;\n"
+              "                if (tx0 * tx0 + ty0 * ty0 > 9f) continue;\n"
+              "            }\n"
+          )
+          if block in src:
+              assert src.count(block) == 1, "filter block found more than once, nothing changed"
+              src = src.replace(block, "")
+              print("all moving coins are drawn")
+          else:
+              print("coin filter not present")
+
+          # 2) when several power levels pot equally, take the stronger one
+          old = "- 0.02f * cand.score - 2f * level;"
+          if old in src:
+              assert src.count(old) == 1, "power line found more than once, nothing changed"
+              src = src.replace(old, "- 0.02f * cand.score + 3f * level;")
+              print("stronger power preferred")
+          else:
+              print("power line already changed or not found")
+          write("ShotSearch.java", src)
+
+          # 3) rounded bends in Smooth mode
+          src = read("AimGuideView.java")
+          if "CornerPathEffect" in src:
+              print("smooth bends already there")
+          else:
+              old = "        paint.setStrokeWidth(stroke);\n        android.graphics.Path path = new android.graphics.Path();\n"
+              assert src.count(old) == 1, "drawPaths anchor not found once, nothing changed"
+              src = src.replace(old,
+                  "        paint.setStrokeWidth(stroke);\n"
+                  "        paint.setPathEffect(smooth ? new android.graphics.CornerPathEffect(46f) : null);\n"
+                  "        android.graphics.Path path = new android.graphics.Path();\n")
+              write("AimGuideView.java", src)
+              print("smooth bends added")
+
+          # 4) shorter waits between shots (only the numbers change)
+          src = read("AssistantOverlayService.java")
+          changes = [
+              (r"(MIN_SHOT_GAP_MS\s*=\s*)\d+L", r"\g<1>1000L"),
+              (r"(SETTLE_MIN_MS\s*=\s*)\d+L", r"\g<1>1200L"),
+              (r"(SLIDER_GAP_MS\s*=\s*)\d+L", r"\g<1>800L"),
+          ]
+          for pat, rep in changes:
+              assert len(re.findall(pat, src)) == 1, "constant not found exactly once, nothing changed: " + pat
+          for pat, rep in changes:
+              src = re.sub(pat, rep, src)
+          write("AssistantOverlayService.java", src)
+          print("waits shortened")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Reference-style lines, rounded bends, shorter waits, stronger shots"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
