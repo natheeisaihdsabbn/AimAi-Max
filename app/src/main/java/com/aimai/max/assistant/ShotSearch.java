@@ -153,6 +153,11 @@ public final class ShotSearch {
         for (int i = 0; i < r.discs.size(); i++) {
             CarromSim.Disc d = r.discs.get(i);
             if (d.pathCount < 2) continue;
+            if (d.owner != CarromSim.STRIKER) {
+                // only the coin this shot is aimed at gets a line
+                float tx0 = d.path[0] - s.target.x, ty0 = d.path[1] - s.target.y;
+                if (tx0 * tx0 + ty0 * ty0 > 9f) continue;
+            }
             float mx = d.path[(d.pathCount - 1) * 2] - d.path[0];
             float my = d.path[(d.pathCount - 1) * 2 + 1] - d.path[1];
             if (mx * mx + my * my < 22f * 22f && d.owner != CarromSim.STRIKER) continue;

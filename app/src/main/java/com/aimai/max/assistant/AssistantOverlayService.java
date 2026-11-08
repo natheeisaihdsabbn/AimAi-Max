@@ -131,7 +131,7 @@ public class AssistantOverlayService extends Service {
             if ("best".equals(drawPre) && !bestFound) drawPre = "cur";
             if (intent.getBooleanExtra(drawPre + "Found", false)) {
                 aimGuideView.setSearch(intent.getFloatArrayExtra(drawPre + "Paths"),
-                        settings().getBoolean("visible_search", true) ? intent.getFloatArrayExtra("curAlts") : null,
+                        settings().getBoolean("visible_search2", false) ? intent.getFloatArrayExtra("curAlts") : null,
                         intent.getFloatExtra(drawPre + "GhostX", -1f),
                         intent.getFloatExtra(drawPre + "GhostY", -1f));
                 aimGuideView.setGuideEnabled(true);
@@ -152,15 +152,15 @@ public class AssistantOverlayService extends Service {
                         sliderTries++;
                         lastSliderAt = now;
                     }
-                } else if (curFound) {
-                    float aimX = intent.getFloatExtra("curAimX", x);
-                    float aimY = intent.getFloatExtra("curAimY", y);
+                } else if (curFound || bestFound) {
+                    float aimX = curFound ? intent.getFloatExtra("curAimX", x) : intent.getFloatExtra("bestGhostX", x);
+                    float aimY = curFound ? intent.getFloatExtra("curAimY", y) : intent.getFloatExtra("bestGhostY", y);
                     boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
                     float powerMul = settings().getInt("power_pct", 100) / 100f;
                     AimAiGestureService.swipeDurationMs = humanStyle()
                             ? 480 + (int) (Math.random() * 220) : 260;
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, aimX * sw, aimY * sh, sw, sh,
-                            intent.getFloatExtra("curPower", 0.6f), pullBack, powerMul)) {
+                            intent.getFloatExtra(curFound ? "curPower" : "bestPower", 0.8f), pullBack, powerMul)) {
                         waitingForSettle = true;
                         sawMotionAfterShot = false;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
@@ -660,9 +660,9 @@ public class AssistantOverlayService extends Service {
         });
         col.addView(switchRow("Auto Play", autoSwitch));
 
-        Switch searchSwitch = accentSwitch(settings().getBoolean("visible_search", true));
+        Switch searchSwitch = accentSwitch(settings().getBoolean("visible_search2", false));
         searchSwitch.setOnCheckedChangeListener((b, checked) ->
-                settings().edit().putBoolean("visible_search", checked).apply());
+                settings().edit().putBoolean("visible_search2", checked).apply());
         visibleSearchSwitch = searchSwitch;
         searchSwitch.setEnabled(autoPlay);
         col.addView(switchRow("Visible Search", searchSwitch));
