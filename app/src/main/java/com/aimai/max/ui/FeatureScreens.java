@@ -35,6 +35,7 @@ public final class FeatureScreens {
                 content.addView(friendInput);
                 android.widget.Button invite = new android.widget.Button(activity);
                 invite.setText("Send Invite");
+                AimAiUiStyle.button(invite);
                 content.addView(invite);
                 android.widget.TextView status = new android.widget.TextView(activity);
                 status.setTextColor(Color.LTGRAY);
@@ -80,6 +81,7 @@ public final class FeatureScreens {
                     addText(activity, content, event, 18, Color.WHITE, true);
                     android.widget.Button join = new android.widget.Button(activity);
                     join.setText(eventPrefs.getInt("event_choice", -1) == index ? "Joined" : "Join Event");
+                    AimAiUiStyle.button(join);
                     content.addView(join);
                     join.setOnClickListener(v -> {
                         eventPrefs.edit().putInt("event_choice", index).apply();
@@ -99,6 +101,7 @@ public final class FeatureScreens {
                     addText(activity, content, product, 18, Color.WHITE, true);
                     android.widget.Button select = new android.widget.Button(activity);
                     select.setText(shopPrefs.getInt("shop_choice", -1) == index ? "Selected" : "Select Item");
+                    AimAiUiStyle.button(select);
                     content.addView(select);
                     select.setOnClickListener(v -> {
                         shopPrefs.edit().putInt("shop_choice", index).apply();
@@ -146,6 +149,7 @@ public final class FeatureScreens {
                 screenSwitch.setText("Keep screen awake");
                 screenSwitch.setTextColor(Color.WHITE);
                 screenSwitch.setChecked(prefs.getBoolean("keep_screen_awake", false));
+                AimAiUiStyle.toggle(screenSwitch);
                 screenSwitch.setOnCheckedChangeListener((button, checked) -> {
                     prefs.edit().putBoolean("keep_screen_awake", checked).apply();
                     // Window flag instead of Settings.System.putInt, which needs the WRITE_SETTINGS
@@ -160,6 +164,7 @@ public final class FeatureScreens {
 
                 android.widget.Button reset = new android.widget.Button(activity);
                 reset.setText("Reset Preferences");
+                AimAiUiStyle.button(reset);
                 content.addView(reset);
                 reset.setOnClickListener(v -> {
                     prefs.edit().clear().apply();
