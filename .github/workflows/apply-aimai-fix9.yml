@@ -1,0 +1,63 @@
+name: Apply AimAi Max line thickness fix
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix9.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Make every guide line the same thickness
+        run: |
+          python3 - <<'PYEND'
+          path = "app/src/main/java/com/aimai/max/assistant/AimGuideView.java"
+          src = open(path, encoding="utf-8").read()
+          pairs = [
+              ("Math.max(1.5f, stroke0 * 0.45f), 105);", "stroke0, 105);"),
+              ("paint.setStrokeWidth(Math.max(2f, stroke0 * 0.7f));", "paint.setStrokeWidth(stroke0);"),
+              ("paint.setStrokeWidth(Math.max(2f, stroke * 0.7f));", "paint.setStrokeWidth(stroke);"),
+              ("paint.setStrokeWidth(Math.max(2f, stroke * 0.8f));", "paint.setStrokeWidth(stroke);"),
+              ("paint.setStrokeWidth(2f);", "paint.setStrokeWidth(stroke);"),
+          ]
+          for old, new in pairs:
+              if old not in src:
+                  if new in src:
+                      print("already done:", old)
+                      continue
+                  raise SystemExit("line not found, nothing changed: " + old)
+              assert src.count(old) == 1, "found more than once: " + old
+              src = src.replace(old, new)
+              print("changed:", old)
+          open(path, "w", encoding="utf-8").write(src)
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Guide lines: every line the same thickness"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
