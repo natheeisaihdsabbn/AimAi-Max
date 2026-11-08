@@ -1,0 +1,74 @@
+name: Apply AimAi Max faster shots
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix13.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Shoot sooner and with more power
+        run: |
+          python3 - <<'PYEND'
+          import re
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          # 1) shorter waits between shots (only the numbers change)
+          path = d + "AssistantOverlayService.java"
+          src = open(path, encoding="utf-8").read()
+          changes = [
+              (r"(MIN_SHOT_GAP_MS\s*=\s*)\d+L", r"\g<1>1000L"),
+              (r"(SETTLE_MIN_MS\s*=\s*)\d+L", r"\g<1>1200L"),
+              (r"(SLIDER_GAP_MS\s*=\s*)\d+L", r"\g<1>800L"),
+          ]
+          for pat, rep in changes:
+              found = re.findall(pat, src)
+              assert len(found) == 1, "constant not found exactly once, nothing changed: " + pat
+          for pat, rep in changes:
+              src = re.sub(pat, rep, src)
+          open(path, "w", encoding="utf-8").write(src)
+          print("waits shortened")
+
+          # 2) when several power levels pot equally, take the stronger one
+          path = d + "ShotSearch.java"
+          src = open(path, encoding="utf-8").read()
+          old = "- 0.02f * cand.score - 2f * level;"
+          if old in src:
+              assert src.count(old) == 1, "power line found more than once"
+              src = src.replace(old, "- 0.02f * cand.score + 3f * level;")
+              open(path, "w", encoding="utf-8").write(src)
+              print("stronger power preferred")
+          else:
+              print("power line not found, left as it is")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Faster Auto Play: shorter waits, stronger shots"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
