@@ -18,11 +18,12 @@ public final class AimAiUiStyle {
 
     private AimAiUiStyle() {}
 
-    private static GradientDrawable shape(int color, int stroke) {
+    private static GradientDrawable shape(android.view.View view, int color, int stroke) {
+        float density = view.getResources().getDisplayMetrics().density;
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
-        d.setCornerRadius(12f * 1.0f);
-        d.setStroke(1, stroke);
+        d.setCornerRadius(12f * density);
+        d.setStroke(Math.max(1, (int) (density + 0.5f)), stroke);
         return d;
     }
 
@@ -31,11 +32,13 @@ public final class AimAiUiStyle {
         button.setTextColor(Color.rgb(238, 238, 246));
         button.setTextSize(12);
         button.setGravity(Gravity.CENTER);
-        button.setMinHeight(44);
-        button.setPadding(14, 8, 14, 8);
+        float density = button.getResources().getDisplayMetrics().density;
+        button.setMinHeight((int) (44 * density));
+        button.setPadding((int) (14 * density), (int) (8 * density),
+                (int) (14 * density), (int) (8 * density));
         button.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(Color.argb(35, 190, 185, 255)),
-                shape(PANEL, BORDER), null));
+                shape(button, PANEL, BORDER), null));
         button.setElevation(0f);
         button.setStateListAnimator(null);
     }
@@ -44,11 +47,21 @@ public final class AimAiUiStyle {
         view.setGravity(Gravity.CENTER);
         view.setTextColor(Color.rgb(238, 238, 246));
         view.setTextSize(12);
-        view.setPadding(10, 8, 10, 8);
-        view.setMinHeight(40);
+        float density = view.getResources().getDisplayMetrics().density;
+        view.setPadding((int) (10 * density), (int) (8 * density),
+                (int) (10 * density), (int) (8 * density));
+        view.setMinHeight((int) (40 * density));
         view.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(Color.argb(35, 190, 185, 255)),
-                shape(selected ? SELECTED : PANEL, selected ? ACCENT : BORDER), null));
+                shape(view, selected ? SELECTED : PANEL, selected ? ACCENT : BORDER), null));
+        view.setClickable(true);
+        view.setFocusable(true);
+    }
+
+    public static void surface(android.view.View view, boolean selected) {
+        view.setBackground(new RippleDrawable(
+                ColorStateList.valueOf(Color.argb(35, 190, 185, 255)),
+                shape(view, selected ? SELECTED : PANEL, selected ? ACCENT : BORDER), null));
         view.setClickable(true);
         view.setFocusable(true);
     }
