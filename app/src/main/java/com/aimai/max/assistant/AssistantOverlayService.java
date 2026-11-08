@@ -19,6 +19,7 @@ import android.widget.Button;
 import android.widget.ImageView;
 import com.aimai.max.R;
 import com.aimai.max.ui.IconView;
+import com.aimai.max.ui.AimAiUiStyle;
 import com.aimai.max.ui.StylePreviewView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
@@ -263,10 +264,7 @@ public class AssistantOverlayService extends Service {
     private Button makeButton(String value) {
         Button button = new Button(this);
         button.setText(value);
-        button.setTextColor(Color.WHITE);
-        button.setTextSize(11);
-        button.setAllCaps(false);
-        button.setBackground(shape(Color.rgb(39, 48, 65), 12));
+        AimAiUiStyle.button(button);
         return button;
     }
 
@@ -480,12 +478,7 @@ public class AssistantOverlayService extends Service {
     private Switch accentSwitch(boolean checked) {
         Switch s = new Switch(this);
         s.setChecked(checked);
-        s.setThumbTintList(new android.content.res.ColorStateList(
-                new int[][]{{android.R.attr.state_checked}, {}},
-                new int[]{Color.WHITE, Color.rgb(170, 174, 186)}));
-        s.setTrackTintList(new android.content.res.ColorStateList(
-                new int[][]{{android.R.attr.state_checked}, {}},
-                new int[]{Color.rgb(96, 104, 150), Color.rgb(60, 64, 78)}));
+        AimAiUiStyle.toggle(s);
         return s;
     }
 
