@@ -1,0 +1,54 @@
+name: Apply AimAi Max build fix
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix8.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Fix the one line that breaks the build
+        run: |
+          python3 - <<'PYEND'
+          path = "app/src/main/java/com/aimai/max/assistant/AimAiGestureService.java"
+          src = open(path, encoding="utf-8").read()
+          old = "pipeline.boardSeen ? SCAN_INTERVAL_MS : IDLE_SCAN_INTERVAL_MS"
+          if old not in src:
+              print("Line already fixed, nothing to do.")
+          else:
+              assert src.count(old) == 1, "unexpected: line found more than once"
+              src = src.replace(old, "SCAN_INTERVAL_MS")
+              open(path, "w", encoding="utf-8").write(src)
+              print("Fixed.")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Fix build: remove boardSeen reference that no longer exists"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
