@@ -186,14 +186,14 @@ public class AimGuideView extends View {
 
         if (searchMain != null) {
             float stroke0 = Math.max(2f, thickness * 0.6f);
-            if (searchAlts != null) drawPaths(canvas, searchAlts, sw, sh, ox, oy, Math.max(1.5f, stroke0 * 0.45f), 105);
+            if (searchAlts != null) drawPaths(canvas, searchAlts, sw, sh, ox, oy, stroke0, 105);
             drawPaths(canvas, searchMain, sw, sh, ox, oy, stroke0, 255);
             if (searchGhostX >= 0f) {
                 paint.setStyle(Paint.Style.STROKE);
                 paint.setPathEffect(null);
                 paint.setShader(null);
                 paint.clearShadowLayer();
-                paint.setStrokeWidth(Math.max(2f, stroke0 * 0.7f));
+                paint.setStrokeWidth(stroke0);
                 paint.setColor(accentColor);
                 canvas.drawCircle(searchGhostX * sw - ox, searchGhostY * sh - oy, r, paint);
             }
@@ -243,7 +243,7 @@ public class AimGuideView extends View {
 
         // ---- ghost striker: a thin ring exactly the size of the striker
         paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(Math.max(2f, stroke * 0.7f));
+        paint.setStrokeWidth(stroke);
         paint.setColor(accentColor);
         canvas.drawCircle(ex, ey, r, paint);
 
@@ -260,12 +260,12 @@ public class AimGuideView extends View {
                 float x1 = px - ux * pr, y1 = py - uy * pr;
 
                 paint.setStrokeCap(Paint.Cap.BUTT);
-                paint.setStrokeWidth(Math.max(2f, stroke * 0.8f));
+                paint.setStrokeWidth(stroke);
                 paint.setColor(ROUTE_GREEN);
                 if ((x1 - x0) * ux + (y1 - y0) * uy > 4f) {
                     canvas.drawLine(x0, y0, x1, y1, paint);
                 }
-                paint.setStrokeWidth(2f);
+                paint.setStrokeWidth(stroke);
                 canvas.drawCircle(tcx, tcy, coinR + 3f, paint);   // marks the coin that will be hit
                 paint.setColor(ROUTE_YELLOW);
                 canvas.drawCircle(px, py, pr * 0.9f, paint);
