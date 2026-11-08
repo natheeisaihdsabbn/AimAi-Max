@@ -1,0 +1,139 @@
+name: Apply AimAi Max automation menu
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Add the Automation menu buttons
+        run: |
+          python3 - <<'PYEND'
+          import base64
+          path = "app/src/main/java/com/aimai/max/assistant/AssistantOverlayService.java"
+          src = open(path, encoding="utf-8").read()
+          if "auto_queue" in src:
+              print("Menu already added, nothing to do.")
+              raise SystemExit(0)
+          block = base64.b64decode("".join("""
+          ICAgICAgICAvLyAtLS0tIFFVRVVFOiBzYW1lIGxheW91dCBhcyB0aGUgcmVmZXJlbmNlIChBdXRvIFF1ZXVlLCBzdGF0dXMsIGdh
+          bWUsIG1heCBzdGFrZSkKICAgICAgICBjb2wuYWRkVmlldyhzZWN0aW9uVGl0bGUoIlFVRVVFIikpOwogICAgICAgIFN3aXRjaCBx
+          dWV1ZVN3aXRjaCA9IGFjY2VudFN3aXRjaChzZXR0aW5ncygpLmdldEJvb2xlYW4oImF1dG9fcXVldWUiLCBmYWxzZSkpOwogICAg
+          ICAgIHF1ZXVlU3dpdGNoLnNldE9uQ2hlY2tlZENoYW5nZUxpc3RlbmVyKChiLCBjaGVja2VkKSAtPgogICAgICAgICAgICAgICAg
+          c2V0dGluZ3MoKS5lZGl0KCkucHV0Qm9vbGVhbigiYXV0b19xdWV1ZSIsIGNoZWNrZWQpLmFwcGx5KCkpOwogICAgICAgIGNvbC5h
+          ZGRWaWV3KHN3aXRjaFJvdygiQXV0byBRdWV1ZSIsIHF1ZXVlU3dpdGNoKSk7CgogICAgICAgIGZpbmFsIFN0cmluZ1tdIHN0YWtl
+          TGFiZWxzID0geyIyMDAiLCAiNTAwIiwgIjIuNmsiLCAiNGsgMnYyIiwgIjUuNWsiLCAiMTFrIiwKICAgICAgICAgICAgICAgICIy
+          N2sgMnYyIiwgIjU1ayIsICIxNDBrIiwgIjE3MGsgMnYyIiwgIjI4MGsiLCAiNTgwayJ9OwogICAgICAgIGZpbmFsIFRleHRWaWV3
+          IHF1ZXVlU3Rha2VWYWx1ZSA9IGxhYmVsKHNldHRpbmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKSwgMTEsCiAg
+          ICAgICAgICAgICAgICBDb2xvci5yZ2IoMTM1LCAxNDAsIDE1NSksIGZhbHNlKTsKICAgICAgICBMaW5lYXJMYXlvdXQgcXVldWVS
+          b3cgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIHF1ZXVlUm93LnNldEdyYXZpdHkoR3Jhdml0eS5DRU5URVJfVkVS
+          VElDQUwpOwogICAgICAgIHF1ZXVlUm93LnNldFBhZGRpbmcoZHAoMiksIGRwKDYpLCAwLCBkcCgyKSk7CiAgICAgICAgcXVldWVS
+          b3cuYWRkVmlldyhsYWJlbCgiXHUyMDIyICBRdWV1ZSIsIDExLCBDb2xvci5yZ2IoMTM1LCAxNDAsIDE1NSksIGZhbHNlKSwKICAg
+          ICAgICAgICAgICAgIG5ldyBMaW5lYXJMYXlvdXQuTGF5b3V0UGFyYW1zKDAsIC0yLCAxZikpOwogICAgICAgIHF1ZXVlUm93LmFk
+          ZFZpZXcocXVldWVTdGFrZVZhbHVlKTsKICAgICAgICBjb2wuYWRkVmlldyhxdWV1ZVJvdyk7CgogICAgICAgIGNvbC5hZGRWaWV3
+          KHNlY3Rpb25UaXRsZSgiR0FNRSIpKTsKICAgICAgICBMaW5lYXJMYXlvdXQgZ2FtZVJvdyA9IG5ldyBMaW5lYXJMYXlvdXQodGhp
+          cyk7CiAgICAgICAgZmluYWwgU3RyaW5nW10gZ2FtZUtleXMgPSB7IkRJU0MiLCAiQ0FSUk9NIiwgIkZSRUVTVFlMRSJ9OwogICAg
+          ICAgIGZpbmFsIFN0cmluZ1tdIGdhbWVOYW1lcyA9IHsiRGlzYyBQb29sIiwgIkNhcnJvbSIsICJGcmVlc3R5bGUifTsKICAgICAg
+          ICBmaW5hbCBUZXh0Vmlld1tdIGdhbWVCdXR0b25zID0gbmV3IFRleHRWaWV3WzNdOwogICAgICAgIFN0cmluZyBzYXZlZEdhbWUg
+          PSBzZXR0aW5ncygpLmdldFN0cmluZygicXVldWVfZ2FtZSIsICJESVNDIik7CiAgICAgICAgZm9yIChpbnQgaSA9IDA7IGkgPCAz
+          OyBpKyspIHsKICAgICAgICAgICAgZmluYWwgaW50IGluZGV4ID0gaTsKICAgICAgICAgICAgVGV4dFZpZXcgZ2IgPSBsYWJlbChn
+          YW1lTmFtZXNbaV0sIDEyLCBDb2xvci5XSElURSwgZmFsc2UpOwogICAgICAgICAgICBnYi5zZXRHcmF2aXR5KEdyYXZpdHkuQ0VO
+          VEVSKTsKICAgICAgICAgICAgZ2Iuc2V0QmFja2dyb3VuZChzaGFwZShnYW1lS2V5c1tpXS5lcXVhbHMoc2F2ZWRHYW1lKSA/IENv
+          bG9yLnJnYig3MCwgNzQsIDEyMCkgOiBDb2xvci5yZ2IoMjQsIDI4LCAzOCksIDEyKSk7CiAgICAgICAgICAgIGdiLnNldE9uQ2xp
+          Y2tMaXN0ZW5lcih2IC0+IHsKICAgICAgICAgICAgICAgIHNldHRpbmdzKCkuZWRpdCgpLnB1dFN0cmluZygicXVldWVfZ2FtZSIs
+          IGdhbWVLZXlzW2luZGV4XSkuYXBwbHkoKTsKICAgICAgICAgICAgICAgIGZvciAoaW50IGsgPSAwOyBrIDwgMzsgaysrKSB7CiAg
+          ICAgICAgICAgICAgICAgICAgZ2FtZUJ1dHRvbnNba10uc2V0QmFja2dyb3VuZChzaGFwZShrID09IGluZGV4ID8gQ29sb3Iucmdi
+          KDcwLCA3NCwgMTIwKSA6IENvbG9yLnJnYigyNCwgMjgsIDM4KSwgMTIpKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAg
+          fSk7CiAgICAgICAgICAgIGdhbWVCdXR0b25zW2ldID0gZ2I7CiAgICAgICAgICAgIExpbmVhckxheW91dC5MYXlvdXRQYXJhbXMg
+          Z3AgPSBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBhcmFtcygwLCBkcCg0MCksIDFmKTsKICAgICAgICAgICAgZ3Auc2V0TWFyZ2lu
+          cyhkcCgyKSwgZHAoMyksIGRwKDIpLCBkcCgzKSk7CiAgICAgICAgICAgIGdhbWVSb3cuYWRkVmlldyhnYiwgZ3ApOwogICAgICAg
+          IH0KICAgICAgICBjb2wuYWRkVmlldyhnYW1lUm93KTsKCiAgICAgICAgLy8gTWF4IFN0YWtlOiBhIGhlYWRlciByb3cgdGhhdCBv
+          cGVucyBhIGdyaWQgb2Ygc3Rha2VzCiAgICAgICAgZmluYWwgVGV4dFZpZXcgc3Rha2VIZWFkZXJWYWx1ZSA9IGxhYmVsKHNldHRp
+          bmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKSwgMTIsCiAgICAgICAgICAgICAgICBDb2xvci5yZ2IoMTcwLCAx
+          NjYsIDIzNSksIGZhbHNlKTsKICAgICAgICBmaW5hbCBUZXh0VmlldyBzdGFrZUNoZXZyb24gPSBsYWJlbCgiXHUyNUJDIiwgMTAs
+          IENvbG9yLnJnYigxMzUsIDE0MCwgMTU1KSwgZmFsc2UpOwogICAgICAgIHN0YWtlQ2hldnJvbi5zZXRQYWRkaW5nKGRwKDgpLCAw
+          LCAwLCAwKTsKICAgICAgICBMaW5lYXJMYXlvdXQgc3Rha2VIZWFkZXIgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAg
+          IHN0YWtlSGVhZGVyLnNldEdyYXZpdHkoR3Jhdml0eS5DRU5URVJfVkVSVElDQUwpOwogICAgICAgIHN0YWtlSGVhZGVyLnNldFBh
+          ZGRpbmcoZHAoMiksIGRwKDE0KSwgMCwgZHAoNikpOwogICAgICAgIHN0YWtlSGVhZGVyLmFkZFZpZXcobGFiZWwoIk1heCBTdGFr
+          ZSIsIDE0LCBDb2xvci5XSElURSwgZmFsc2UpLCBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBhcmFtcygwLCAtMiwgMWYpKTsKICAg
+          ICAgICBzdGFrZUhlYWRlci5hZGRWaWV3KHN0YWtlSGVhZGVyVmFsdWUpOwogICAgICAgIHN0YWtlSGVhZGVyLmFkZFZpZXcoc3Rh
+          a2VDaGV2cm9uKTsKICAgICAgICBjb2wuYWRkVmlldyhzdGFrZUhlYWRlcik7CgogICAgICAgIGZpbmFsIExpbmVhckxheW91dCBz
+          dGFrZUdyaWQgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIHN0YWtlR3JpZC5zZXRPcmllbnRhdGlvbihMaW5lYXJM
+          YXlvdXQuVkVSVElDQUwpOwogICAgICAgIHN0YWtlR3JpZC5zZXRWaXNpYmlsaXR5KFZpZXcuR09ORSk7CiAgICAgICAgZmluYWwg
+          VGV4dFZpZXdbXSBzdGFrZUJ1dHRvbnMgPSBuZXcgVGV4dFZpZXdbc3Rha2VMYWJlbHMubGVuZ3RoXTsKICAgICAgICBTdHJpbmcg
+          c2F2ZWRTdGFrZSA9IHNldHRpbmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKTsKICAgICAgICBmb3IgKGludCBy
+          b3cgPSAwOyByb3cgPCA0OyByb3crKykgewogICAgICAgICAgICBMaW5lYXJMYXlvdXQgbGluZSA9IG5ldyBMaW5lYXJMYXlvdXQo
+          dGhpcyk7CiAgICAgICAgICAgIGZvciAoaW50IGNlbGwgPSAwOyBjZWxsIDwgMzsgY2VsbCsrKSB7CiAgICAgICAgICAgICAgICBm
+          aW5hbCBpbnQgaW5kZXggPSByb3cgKiAzICsgY2VsbDsKICAgICAgICAgICAgICAgIFRleHRWaWV3IHNiID0gbGFiZWwoc3Rha2VM
+          YWJlbHNbaW5kZXhdLCAxMiwgQ29sb3IucmdiKDE5MCwgMTk0LCAyMDgpLCBmYWxzZSk7CiAgICAgICAgICAgICAgICBzYi5zZXRH
+          cmF2aXR5KEdyYXZpdHkuQ0VOVEVSKTsKICAgICAgICAgICAgICAgIHNiLnNldEJhY2tncm91bmQoc2hhcGUoc3Rha2VMYWJlbHNb
+          aW5kZXhdLmVxdWFscyhzYXZlZFN0YWtlKQogICAgICAgICAgICAgICAgICAgICAgICA/IENvbG9yLnJnYigzNiwgNDAsIDU2KSA6
+          IENvbG9yLlRSQU5TUEFSRU5ULCAxMikpOwogICAgICAgICAgICAgICAgc2Iuc2V0T25DbGlja0xpc3RlbmVyKHYgLT4gewogICAg
+          ICAgICAgICAgICAgICAgIHNldHRpbmdzKCkuZWRpdCgpLnB1dFN0cmluZygicXVldWVfc3Rha2UiLCBzdGFrZUxhYmVsc1tpbmRl
+          eF0pLmFwcGx5KCk7CiAgICAgICAgICAgICAgICAgICAgcXVldWVTdGFrZVZhbHVlLnNldFRleHQoc3Rha2VMYWJlbHNbaW5kZXhd
+          KTsKICAgICAgICAgICAgICAgICAgICBzdGFrZUhlYWRlclZhbHVlLnNldFRleHQoc3Rha2VMYWJlbHNbaW5kZXhdKTsKICAgICAg
+          ICAgICAgICAgICAgICBmb3IgKGludCBrID0gMDsgayA8IHN0YWtlQnV0dG9ucy5sZW5ndGg7IGsrKykgewogICAgICAgICAgICAg
+          ICAgICAgICAgICBzdGFrZUJ1dHRvbnNba10uc2V0QmFja2dyb3VuZChzaGFwZShrID09IGluZGV4ID8gQ29sb3IucmdiKDM2LCA0
+          MCwgNTYpIDogQ29sb3IuVFJBTlNQQVJFTlQsIDEyKSk7CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgfSk7
+          CiAgICAgICAgICAgICAgICBzdGFrZUJ1dHRvbnNbaW5kZXhdID0gc2I7CiAgICAgICAgICAgICAgICBMaW5lYXJMYXlvdXQuTGF5
+          b3V0UGFyYW1zIHNwID0gbmV3IExpbmVhckxheW91dC5MYXlvdXRQYXJhbXMoMCwgZHAoNDYpLCAxZik7CiAgICAgICAgICAgICAg
+          ICBzcC5zZXRNYXJnaW5zKGRwKDMpLCBkcCgzKSwgZHAoMyksIGRwKDMpKTsKICAgICAgICAgICAgICAgIGxpbmUuYWRkVmlldyhz
+          Yiwgc3ApOwogICAgICAgICAgICB9CiAgICAgICAgICAgIHN0YWtlR3JpZC5hZGRWaWV3KGxpbmUpOwogICAgICAgIH0KICAgICAg
+          ICBjb2wuYWRkVmlldyhzdGFrZUdyaWQpOwogICAgICAgIHN0YWtlSGVhZGVyLnNldE9uQ2xpY2tMaXN0ZW5lcih2IC0+IHsKICAg
+          ICAgICAgICAgYm9vbGVhbiBvcGVuID0gc3Rha2VHcmlkLmdldFZpc2liaWxpdHkoKSA9PSBWaWV3LlZJU0lCTEU7CiAgICAgICAg
+          ICAgIHN0YWtlR3JpZC5zZXRWaXNpYmlsaXR5KG9wZW4gPyBWaWV3LkdPTkUgOiBWaWV3LlZJU0lCTEUpOwogICAgICAgICAgICBz
+          dGFrZUNoZXZyb24uc2V0VGV4dChvcGVuID8gIlx1MjVCQyIgOiAiXHUyNUIyIik7CiAgICAgICAgfSk7Cg==
+          """.split())).decode("utf-8")
+          pairs = [
+              ("    private TextView statsView;\n",
+               "    private TextView statsView;\n    private Switch visibleSearchSwitch;\n"),
+              ('label("Auto Play", 20, Color.WHITE, true)',
+               'label("Automation", 20, Color.WHITE, true)'),
+              ("            autoPlay = checked;\n",
+               "            autoPlay = checked;\n            if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);\n"),
+              ('col.addView(switchRow("AUTO PLAY", autoSwitch));',
+               'col.addView(switchRow("Auto Play", autoSwitch));'),
+              ('        col.addView(switchRow("VISIBLE SEARCH", searchSwitch));',
+               '        visibleSearchSwitch = searchSwitch;\n        searchSwitch.setEnabled(autoPlay);\n        col.addView(switchRow("Visible Search", searchSwitch));'),
+              ("        col.addView(styleHint);\n",
+               "        col.addView(styleHint);\n\n" + block),
+          ]
+          for old, new in pairs:
+              assert src.count(old) == 1, "anchor not found exactly once, nothing changed: " + old[:60]
+          for old, new in pairs:
+              src = src.replace(old, new)
+          open(path, "w", encoding="utf-8").write(src)
+          print("Menu added.")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Automation menu: Auto Queue, Game, Max Stake, Visible Search greyed until Auto Play"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
