@@ -86,7 +86,7 @@ public class AimAiGestureService extends AccessibilityService {
             } else {
                 pipeline.reset();
             }
-            h.postDelayed(this, pipeline.boardSeen ? SCAN_INTERVAL_MS : IDLE_SCAN_INTERVAL_MS);
+            h.postDelayed(this, SCAN_INTERVAL_MS);
         }
     };
 
