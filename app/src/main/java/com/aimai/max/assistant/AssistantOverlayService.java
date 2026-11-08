@@ -459,6 +459,7 @@ public class AssistantOverlayService extends Service {
         }
     };
     private TextView statsView;
+    private Switch visibleSearchSwitch;
     private android.widget.ScrollView tabScroll;
     private IconView[] tabIcons;
     private StylePreviewView[] styleCards;
@@ -639,7 +640,7 @@ public class AssistantOverlayService extends Service {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setPadding(dp(10), 0, dp(6), dp(6));
-        TextView head = label("Auto Play", 20, Color.WHITE, true);
+        TextView head = label("Automation", 20, Color.WHITE, true);
         head.setPadding(0, 0, 0, dp(10));
         col.addView(head);
 
@@ -654,6 +655,7 @@ public class AssistantOverlayService extends Service {
                 return;
             }
             autoPlay = checked;
+            if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);
             waitingForSettle = false;
             sawMotionAfterShot = false;
             lastAutoShotAt = 0L;
@@ -663,12 +665,14 @@ public class AssistantOverlayService extends Service {
             lastSliderAt = 0L;
             settings().edit().putBoolean("slide_enabled", true).apply();
         });
-        col.addView(switchRow("AUTO PLAY", autoSwitch));
+        col.addView(switchRow("Auto Play", autoSwitch));
 
         Switch searchSwitch = accentSwitch(settings().getBoolean("visible_search", true));
         searchSwitch.setOnCheckedChangeListener((b, checked) ->
                 settings().edit().putBoolean("visible_search", checked).apply());
-        col.addView(switchRow("VISIBLE SEARCH", searchSwitch));
+        visibleSearchSwitch = searchSwitch;
+        searchSwitch.setEnabled(autoPlay);
+        col.addView(switchRow("Visible Search", searchSwitch));
 
         col.addView(sectionTitle("PLAY STYLE"));
         LinearLayout styleRow = new LinearLayout(this);
@@ -697,6 +701,97 @@ public class AssistantOverlayService extends Service {
                 Color.rgb(135, 140, 155), false);
         styleHint.setPadding(dp(2), dp(2), 0, 0);
         col.addView(styleHint);
+
+        // ---- QUEUE: same layout as the reference (Auto Queue, status, game, max stake)
+        col.addView(sectionTitle("QUEUE"));
+        Switch queueSwitch = accentSwitch(settings().getBoolean("auto_queue", false));
+        queueSwitch.setOnCheckedChangeListener((b, checked) ->
+                settings().edit().putBoolean("auto_queue", checked).apply());
+        col.addView(switchRow("Auto Queue", queueSwitch));
+
+        final String[] stakeLabels = {"200", "500", "2.6k", "4k 2v2", "5.5k", "11k",
+                "27k 2v2", "55k", "140k", "170k 2v2", "280k", "580k"};
+        final TextView queueStakeValue = label(settings().getString("queue_stake", "500"), 11,
+                Color.rgb(135, 140, 155), false);
+        LinearLayout queueRow = new LinearLayout(this);
+        queueRow.setGravity(Gravity.CENTER_VERTICAL);
+        queueRow.setPadding(dp(2), dp(6), 0, dp(2));
+        queueRow.addView(label("\u2022  Queue", 11, Color.rgb(135, 140, 155), false),
+                new LinearLayout.LayoutParams(0, -2, 1f));
+        queueRow.addView(queueStakeValue);
+        col.addView(queueRow);
+
+        col.addView(sectionTitle("GAME"));
+        LinearLayout gameRow = new LinearLayout(this);
+        final String[] gameKeys = {"DISC", "CARROM", "FREESTYLE"};
+        final String[] gameNames = {"Disc Pool", "Carrom", "Freestyle"};
+        final TextView[] gameButtons = new TextView[3];
+        String savedGame = settings().getString("queue_game", "DISC");
+        for (int i = 0; i < 3; i++) {
+            final int index = i;
+            TextView gb = label(gameNames[i], 12, Color.WHITE, false);
+            gb.setGravity(Gravity.CENTER);
+            gb.setBackground(shape(gameKeys[i].equals(savedGame) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            gb.setOnClickListener(v -> {
+                settings().edit().putString("queue_game", gameKeys[index]).apply();
+                for (int k = 0; k < 3; k++) {
+                    gameButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                }
+            });
+            gameButtons[i] = gb;
+            LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            gp.setMargins(dp(2), dp(3), dp(2), dp(3));
+            gameRow.addView(gb, gp);
+        }
+        col.addView(gameRow);
+
+        // Max Stake: a header row that opens a grid of stakes
+        final TextView stakeHeaderValue = label(settings().getString("queue_stake", "500"), 12,
+                Color.rgb(170, 166, 235), false);
+        final TextView stakeChevron = label("\u25BC", 10, Color.rgb(135, 140, 155), false);
+        stakeChevron.setPadding(dp(8), 0, 0, 0);
+        LinearLayout stakeHeader = new LinearLayout(this);
+        stakeHeader.setGravity(Gravity.CENTER_VERTICAL);
+        stakeHeader.setPadding(dp(2), dp(14), 0, dp(6));
+        stakeHeader.addView(label("Max Stake", 14, Color.WHITE, false), new LinearLayout.LayoutParams(0, -2, 1f));
+        stakeHeader.addView(stakeHeaderValue);
+        stakeHeader.addView(stakeChevron);
+        col.addView(stakeHeader);
+
+        final LinearLayout stakeGrid = new LinearLayout(this);
+        stakeGrid.setOrientation(LinearLayout.VERTICAL);
+        stakeGrid.setVisibility(View.GONE);
+        final TextView[] stakeButtons = new TextView[stakeLabels.length];
+        String savedStake = settings().getString("queue_stake", "500");
+        for (int row = 0; row < 4; row++) {
+            LinearLayout line = new LinearLayout(this);
+            for (int cell = 0; cell < 3; cell++) {
+                final int index = row * 3 + cell;
+                TextView sb = label(stakeLabels[index], 12, Color.rgb(190, 194, 208), false);
+                sb.setGravity(Gravity.CENTER);
+                sb.setBackground(shape(stakeLabels[index].equals(savedStake)
+                        ? Color.rgb(36, 40, 56) : Color.TRANSPARENT, 12));
+                sb.setOnClickListener(v -> {
+                    settings().edit().putString("queue_stake", stakeLabels[index]).apply();
+                    queueStakeValue.setText(stakeLabels[index]);
+                    stakeHeaderValue.setText(stakeLabels[index]);
+                    for (int k = 0; k < stakeButtons.length; k++) {
+                        stakeButtons[k].setBackground(shape(k == index ? Color.rgb(36, 40, 56) : Color.TRANSPARENT, 12));
+                    }
+                });
+                stakeButtons[index] = sb;
+                LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, dp(46), 1f);
+                sp.setMargins(dp(3), dp(3), dp(3), dp(3));
+                line.addView(sb, sp);
+            }
+            stakeGrid.addView(line);
+        }
+        col.addView(stakeGrid);
+        stakeHeader.setOnClickListener(v -> {
+            boolean open = stakeGrid.getVisibility() == View.VISIBLE;
+            stakeGrid.setVisibility(open ? View.GONE : View.VISIBLE);
+            stakeChevron.setText(open ? "\u25BC" : "\u25B2");
+        });
 
         col.addView(sectionTitle("SWIPE DIRECTION"));
         LinearLayout swipeRow = new LinearLayout(this);
