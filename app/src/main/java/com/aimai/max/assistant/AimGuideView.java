@@ -38,6 +38,11 @@ public class AimGuideView extends View {
     private float ghostX = -1f, ghostY = -1f, pocketX = -1f, pocketY = -1f;
     private boolean shotRouteEnabled = false;
 
+    // simulated shot paths: [kind, n, x0, y0, ...] repeated, all normalized to the screen
+    private float[] searchMain = null;
+    private float[] searchAlts = null;
+    private float searchGhostX = -1f, searchGhostY = -1f;
+
     public AimGuideView(Context context) {
         super(context);
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
@@ -64,6 +69,21 @@ public class AimGuideView extends View {
         pocketX = clamp(px);
         pocketY = clamp(py);
         shotRouteEnabled = enabled;
+        invalidate();
+    }
+
+    /** Shows the simulated path of the chosen shot (with every wall bounce) and, thin, the other shots tried. */
+    public void setSearch(float[] main, float[] alts, float ghostX, float ghostY) {
+        searchMain = (main != null && main.length > 0) ? main : null;
+        searchAlts = (alts != null && alts.length > 0) ? alts : null;
+        searchGhostX = ghostX;
+        searchGhostY = ghostY;
+        invalidate();
+    }
+
+    public void clearSearch() {
+        searchMain = null;
+        searchAlts = null;
         invalidate();
     }
 
@@ -110,6 +130,38 @@ public class AimGuideView extends View {
         invalidate();
     }
 
+    private void drawPaths(Canvas canvas, float[] data, float sw, float sh, float ox, float oy,
+                           float stroke, int alpha) {
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setStrokeCap(Paint.Cap.ROUND);
+        paint.setStrokeJoin(Paint.Join.ROUND);
+        paint.setPathEffect(null);
+        paint.setShader(null);
+        paint.clearShadowLayer();
+        paint.setStrokeWidth(stroke);
+        android.graphics.Path path = new android.graphics.Path();
+        int i = 0;
+        while (i + 1 < data.length) {
+            int kind = (int) data[i];
+            int n = (int) data[i + 1];
+            int p = i + 2;
+            if (n < 2 || p + n * 2 > data.length) break;
+            int color = kind == 0 ? accentColor : (kind == 1 ? ROUTE_GREEN : Color.rgb(255, 95, 120));
+            paint.setColor(color);
+            paint.setAlpha(alpha);
+            path.reset();
+            for (int k = 0; k < n; k++) {
+                float x = data[p + k * 2] * sw - ox;
+                float y = data[p + k * 2 + 1] * sh - oy;
+                if (k == 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
+            }
+            canvas.drawPath(path, paint);
+            i = p + n * 2;
+        }
+        paint.setAlpha(255);
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -131,6 +183,22 @@ public class AimGuideView extends View {
         float py = pocketY * sh - oy;
 
         float r = bodyRadius > 0f ? bodyRadius * sw : 0.032f * sw;   // striker radius in pixels
+
+        if (searchMain != null) {
+            float stroke0 = Math.max(2f, thickness * 0.6f);
+            if (searchAlts != null) drawPaths(canvas, searchAlts, sw, sh, ox, oy, Math.max(1.5f, stroke0 * 0.45f), 105);
+            drawPaths(canvas, searchMain, sw, sh, ox, oy, stroke0, 255);
+            if (searchGhostX >= 0f) {
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setPathEffect(null);
+                paint.setShader(null);
+                paint.clearShadowLayer();
+                paint.setStrokeWidth(Math.max(2f, stroke0 * 0.7f));
+                paint.setColor(accentColor);
+                canvas.drawCircle(searchGhostX * sw - ox, searchGhostY * sh - oy, r, paint);
+            }
+            return;
+        }
         float coinR = r * 0.75f;
         float stroke = Math.max(2f, thickness * 0.6f);
 

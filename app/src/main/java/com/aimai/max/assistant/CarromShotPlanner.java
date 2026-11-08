@@ -8,545 +8,346 @@ import com.aimai.max.assistant.CarromBoardAnalyzer.Pocket;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+/**
+ * Shot planner. For every striker position on the baseline (the striker can be slid with the slider),
+ * every wanted coin and every pocket it scores three kinds of shot:
+ *   0 = direct: striker hits the coin, the coin goes to the pocket;
+ *   1 = coin bank: the coin first bounces off a wall, then goes to the pocket;
+ *   2 = striker bank: the striker bounces off a wall, then hits the coin.
+ * Coins in the way cost extra, so the cleanest shot wins, but a blocked shot is still allowed
+ * when nothing better exists.
+ */
 public final class CarromShotPlanner {
 
     private CarromShotPlanner() {}
 
     public static class Shot {
         public boolean valid;
+        public int kind;
         public Piece target;
         public Pocket pocket;
-        /** Where the striker must stand on the baseline for this shot (screen pixels). */
+        /** Where the striker stands on the baseline for this shot. */
         public float strikerX;
         public float strikerY;
+        /** The point the finger must aim at (the ghost striker, or the wall for a striker bank). */
+        public float aimX;
+        public float aimY;
         public float ghostX;
         public float ghostY;
-        public float contactX;
-        public float contactY;
+        /** Wall point of a bank shot, -1 when there is none. */
+        public float bankX = -1f;
+        public float bankY = -1f;
         public float cutAngleDeg;
+        /** Direction the striker travels after hitting the coin (kept for the old guide helper). */
         public float afterDx;
         public float afterDy;
-        /** Planner cost in pixels (lower is better). Not a power value. */
+        /** Planner cost in pixels (lower is better). */
         public float score;
         /** 0..1 shot strength derived from the travel distance. */
         public float power;
-        /** How many other coins sit on the striker path or on the coin's path to the pocket. */
+        /** How many other coins sit on the paths of this shot. */
         public int blockers;
-        /** True when the shot uses a bounce off a cushion (striker or coin). */
-        public boolean bank;
-        /** The point the finger must aim at: the ghost position, or the cushion point for a striker bank. */
-        public float aimX;
-        public float aimY;
-        /** Striker route as x,y pairs: start, [cushion point], ghost. */
-        public float[] strikerPath;
-        /** Coin route as x,y pairs: coin, [cushion point], pocket. */
-        public float[] coinPath;
-        /** Other good coin to pocket routes, 4 numbers each: coinX, coinY, pocketX, pocketY. */
-        public final List<float[]> alts = new ArrayList<>();
     }
 
-    /** Best shot from the place where the striker stands right now. */
-    public static Shot plan(Analysis a, PieceType wanted) {
+    public static List<Shot> planAll(Analysis a, boolean anyCoin, boolean slide) {
+        List<Shot> out = new ArrayList<>();
         if (a == null || a.striker == null || !a.board.detected) {
-            return new Shot();
+            return out;
         }
-        return planFrom(a, wanted, a.striker.x, a.striker.y);
-    }
+        Piece s0 = a.striker;
+        float L = a.board.left, T = a.board.top, R = a.board.right, B = a.board.bottom;
+        float W = a.board.width();
+        float rc = 0f;
+        for (Piece p : a.pieces) {
+            if (p != s0 && p.type != PieceType.STRIKER) { rc = p.radius; break; }
+        }
+        if (rc <= 0f) rc = 0.75f * s0.radius;
+        float rs = s0.radius;
+        float sy = s0.y;
 
-    /**
-     * Tries many places along the striker baseline (the striker can slide left and right) and keeps
-     * the cheapest shot. Places where a coin already sits are skipped.
-     */
-    public static Shot planBest(Analysis a, PieceType wanted) {
-        Shot best = plan(a, wanted);
-        if (a == null || a.striker == null || !a.board.detected) {
-            return best;
-        }
-        Piece s = a.striker;
-        float bw = a.board.width();
-        float minX = a.board.left + 0.2265f * bw;
-        float maxX = a.board.left + 0.772f * bw;
-        int steps = 12;
-        for (int i = 0; i <= steps; i++) {
-            float x = minX + (maxX - minX) * i / steps;
-            boolean free = true;
+        float xMin = L + 0.215f * W;
+        float xMax = R - 0.215f * W;
+        int positions = slide ? 33 : 1;
+
+        for (int i = 0; i < positions; i++) {
+            float sx;
+            if (!slide || i == 0) {
+                sx = s0.x;
+            } else {
+                sx = xMin + (xMax - xMin) * (i - 1) / (float) (positions - 2);
+            }
+            // the striker cannot be put on top of another coin
+            boolean overlap = false;
             for (Piece o : a.pieces) {
-                if (o == s) {
-                    continue;
-                }
-                float dx = o.x - x;
-                float dy = o.y - s.y;
-                if (Math.sqrt(dx * dx + dy * dy) < o.radius + s.radius) {
-                    free = false;
-                    break;
-                }
+                if (o == s0 || o.type == PieceType.STRIKER) continue;
+                float dx = o.x - sx, dy = o.y - sy;
+                if (Math.sqrt(dx * dx + dy * dy) < rs + o.radius * 0.95f) { overlap = true; break; }
             }
-            if (!free) {
-                continue;
-            }
-            Shot c = planFrom(a, wanted, x, s.y);
-            if (c.valid && (!best.valid || c.score < best.score)) {
-                best = c;
+            if (overlap) continue;
+            float move = Math.abs(sx - s0.x);
+
+            for (Piece t : a.pieces) {
+                if (t == s0 || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) continue;
+                boolean isQueen = t.type == PieceType.QUEEN;
+                if (!anyCoin && !t.mine && !isQueen) continue;
+                float queenCost = (isQueen && !anyCoin) ? W * 0.4f : 0f;
+                float rt = t.radius;
+
+                for (Pocket p : a.pockets) {
+                    float tx = p.x - t.x, ty = p.y - t.y;
+                    float tl = (float) Math.sqrt(tx * tx + ty * ty);
+                    if (tl < 1f) continue;
+                    float ux = tx / tl, uy = ty / tl;
+                    float gx = t.x - ux * (rt + rs);
+                    float gy = t.y - uy * (rt + rs);
+                    boolean ghostInside = gx >= L + rs && gx <= R - rs && gy >= T + rs && gy <= B - rs;
+
+                    int coinLegBlockers = 0;
+                    for (Piece o : a.pieces) {
+                        if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
+                        if (segDist(o.x, o.y, t.x, t.y, p.x, p.y) < o.radius + rt * 0.95f) coinLegBlockers++;
+                    }
+
+                    if (ghostInside) {
+                        // ---- 0: direct shot
+                        float vx0 = gx - sx, vy0 = gy - sy;
+                        float sl = (float) Math.sqrt(vx0 * vx0 + vy0 * vy0);
+                        if (sl > 1f) {
+                            float vx = vx0 / sl, vy = vy0 / sl;
+                            float cos = vx * ux + vy * uy;
+                            boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
+                            if (cos >= 0.2588f && awayFromBaseline) {
+                                int blk = coinLegBlockers;
+                                for (Piece o : a.pieces) {
+                                    if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
+                                    if (segDist(o.x, o.y, sx, sy, gx, gy) < o.radius + rs * 0.95f) blk++;
+                                }
+                                float score = sl + tl * 1.5f + (1f - cos) * W * 1.5f + blk * W + move + queenCost;
+                                out.add(make(0, t, p, sx, sy, gx, gy, gx, gy, -1f, -1f, cos, sl + tl, blk, score, W));
+                            }
+                        }
+
+                        // ---- 2: striker bank off each wall, then the coin
+                        for (int wall = 0; wall < 4; wall++) {
+                            float wv, rgx, rgy;
+                            if (wall == 0) { wv = L + rs; rgx = 2 * wv - gx; rgy = gy; }
+                            else if (wall == 1) { wv = R - rs; rgx = 2 * wv - gx; rgy = gy; }
+                            else if (wall == 2) { wv = T + rs; rgx = gx; rgy = 2 * wv - gy; }
+                            else { wv = B - rs; rgx = gx; rgy = 2 * wv - gy; }
+                            float dx = rgx - sx, dy = rgy - sy;
+                            float hx, hy;
+                            if (wall < 2) {
+                                if (Math.abs(dx) < 1e-6f) continue;
+                                float lam = (wv - sx) / dx;
+                                if (lam < 0.02f || lam > 0.98f) continue;
+                                hx = wv;
+                                hy = sy + lam * dy;
+                                if (hy < T + rs || hy > B - rs) continue;
+                            } else {
+                                if (Math.abs(dy) < 1e-6f) continue;
+                                float lam = (wv - sy) / dy;
+                                if (lam < 0.02f || lam > 0.98f) continue;
+                                hx = sx + lam * dx;
+                                hy = wv;
+                                if (hx < L + rs || hx > R - rs) continue;
+                            }
+                            float d1 = dist(hx, hy, sx, sy);
+                            float d2 = dist(gx, gy, hx, hy);
+                            if (d1 < rs * 1.5f || d2 < rs * 1.5f) continue;
+                            float fx = (gx - hx) / d2, fy = (gy - hy) / d2;
+                            float cos = fx * ux + fy * uy;
+                            if (cos < 0.2588f) continue;
+                            int blk = coinLegBlockers;
+                            for (Piece o : a.pieces) {
+                                if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
+                                if (segDist(o.x, o.y, sx, sy, hx, hy) < o.radius + rs * 0.95f) blk++;
+                                if (segDist(o.x, o.y, hx, hy, gx, gy) < o.radius + rs * 0.95f) blk++;
+                            }
+                            float score = d1 + d2 + tl * 1.5f + (1f - cos) * W * 1.5f + blk * W
+                                    + 0.45f * W + move + queenCost;
+                            out.add(make(2, t, p, sx, sy, hx, hy, gx, gy, hx, hy, cos, d1 + d2 + tl, blk, score, W));
+                        }
+                    }
+
+                    // ---- 1: coin bank. The coin bounces off a wall first, then drops in the pocket.
+                    for (int wall = 0; wall < 4; wall++) {
+                        float wv, pmx, pmy;
+                        if (wall == 0) { wv = L + rt; pmx = 2 * wv - p.x; pmy = p.y; }
+                        else if (wall == 1) { wv = R - rt; pmx = 2 * wv - p.x; pmy = p.y; }
+                        else if (wall == 2) { wv = T + rt; pmx = p.x; pmy = 2 * wv - p.y; }
+                        else { wv = B - rt; pmx = p.x; pmy = 2 * wv - p.y; }
+                        float dx = pmx - t.x, dy = pmy - t.y;
+                        float dl = (float) Math.sqrt(dx * dx + dy * dy);
+                        if (dl < 1f) continue;
+                        float hx, hy;
+                        if (wall < 2) {
+                            if (Math.abs(dx) < 1e-6f) continue;
+                            float lam = (wv - t.x) / dx;
+                            if (lam < 0.02f || lam > 0.98f) continue;
+                            hx = wv;
+                            hy = t.y + lam * dy;
+                            if (hy < T + rt || hy > B - rt) continue;
+                        } else {
+                            if (Math.abs(dy) < 1e-6f) continue;
+                            float lam = (wv - t.y) / dy;
+                            if (lam < 0.02f || lam > 0.98f) continue;
+                            hx = t.x + lam * dx;
+                            hy = wv;
+                            if (hx < L + rt || hx > R - rt) continue;
+                        }
+                        // a "bank" right next to the pocket is just a straight shot, skip it
+                        if (dist(hx, hy, p.x, p.y) < 0.2f * W) continue;
+                        float bx = dx / dl, by = dy / dl;
+                        float cgx = t.x - bx * (rt + rs);
+                        float cgy = t.y - by * (rt + rs);
+                        if (cgx < L + rs || cgx > R - rs || cgy < T + rs || cgy > B - rs) continue;
+                        float vx0 = cgx - sx, vy0 = cgy - sy;
+                        float sl = (float) Math.sqrt(vx0 * vx0 + vy0 * vy0);
+                        if (sl <= 1f) continue;
+                        float vx = vx0 / sl, vy = vy0 / sl;
+                        float cos = vx * bx + vy * by;
+                        boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
+                        if (cos < 0.2588f || !awayFromBaseline) continue;
+                        float l1 = dist(hx, hy, t.x, t.y);
+                        float l2 = dist(p.x, p.y, hx, hy);
+                        int blk = 0;
+                        for (Piece o : a.pieces) {
+                            if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
+                            if (segDist(o.x, o.y, sx, sy, cgx, cgy) < o.radius + rs * 0.95f) blk++;
+                            if (segDist(o.x, o.y, t.x, t.y, hx, hy) < o.radius + rt * 0.95f) blk++;
+                            if (segDist(o.x, o.y, hx, hy, p.x, p.y) < o.radius + rt * 0.95f) blk++;
+                        }
+                        float score = sl + (l1 + l2) * 1.5f + (1f - cos) * W * 1.5f + blk * W
+                                + 0.55f * W + move + queenCost;
+                        out.add(make(1, t, p, sx, sy, cgx, cgy, cgx, cgy, hx, hy, cos, sl + l1 + l2, blk, score, W));
+                    }
+                }
             }
         }
-        return best;
-    }
-
-    // ---------------------------------------------------------------- planning
-
-    /**
-     * Looks at every wanted coin and every pocket and tries three kinds of shot: a straight shot,
-     * a shot where the coin bounces off a cushion on its way to the pocket, and a shot where the striker
-     * bounces off a cushion before it hits the coin. The cheapest shot that fits wins. If nothing fits,
-     * the nearest wanted coin is aimed at directly.
-     */
-    private static Shot planFrom(Analysis a, PieceType wanted, float stX, float stY) {
-        Shot best = new Shot();
-        if (a == null || a.striker == null || !a.board.detected) {
-            return best;
-        }
-
-        Piece real = a.striker;
-        float sr = real.radius;
-        float bw = a.board.width();
-        float[] walls = wallEdges(a);
-        List<Shot> directs = new ArrayList<>();
-
-        for (Piece t : a.pieces) {
-            if (!isWanted(t, real, wanted)) {
-                continue;
-            }
-            for (Pocket p : a.pockets) {
-                Shot d = direct(a, real, t, p, stX, stY, sr, bw);
-                if (d != null) {
-                    directs.add(d);
-                    best = cheaper(best, d);
-                }
-                for (int w = 0; w < 4; w++) {
-                    best = cheaper(best, coinBank(a, real, t, p, w, walls, stX, stY, sr, bw));
-                }
-                for (int w = 0; w < 3; w++) {
-                    best = cheaper(best, strikerBank(a, real, t, p, w, walls, stX, stY, sr, bw));
-                }
-            }
-        }
-
-        if (!best.valid) {
-            aimNearest(best, a, stX, stY, sr, wanted, bw);
-            return best;
-        }
-
-        Collections.sort(directs, new Comparator<Shot>() {
-            @Override
-            public int compare(Shot x, Shot y) {
-                return Float.compare(x.score, y.score);
-            }
+        Collections.sort(out, new Comparator<Shot>() {
+            @Override public int compare(Shot x, Shot y) { return Float.compare(x.score, y.score); }
         });
-        for (Shot d : directs) {
-            if (best.alts.size() >= 4) {
-                break;
-            }
-            if (d.target == best.target && d.pocket == best.pocket) {
-                continue;
-            }
-            best.alts.add(new float[]{d.target.x, d.target.y, d.pocket.x, d.pocket.y});
-        }
-        return best;
+        return out;
     }
 
-    private static Shot cheaper(Shot best, Shot c) {
-        if (c != null && c.valid && (!best.valid || c.score < best.score)) {
-            return c;
-        }
-        return best;
-    }
-
-    private static boolean isWanted(Piece t, Piece real, PieceType wanted) {
-        if (t == real || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) {
-            return false;
-        }
-        return wanted == null || t.type == wanted || t.type == PieceType.QUEEN;
-    }
-
-    /** Inner edges of the four cushions: left, right, top, bottom, and the average pocket radius. */
-    private static float[] wallEdges(Analysis a) {
-        float minX = Float.MAX_VALUE, maxX = -Float.MAX_VALUE;
-        float minY = Float.MAX_VALUE, maxY = -Float.MAX_VALUE;
-        float pr = 0f;
-        int n = 0;
-        for (Pocket p : a.pockets) {
-            minX = Math.min(minX, p.x);
-            maxX = Math.max(maxX, p.x);
-            minY = Math.min(minY, p.y);
-            maxY = Math.max(maxY, p.y);
-            pr += p.radius;
-            n++;
-        }
-        float bw = a.board.width();
-        if (n < 4) {
-            float inset = 0.035f * bw;
-            return new float[]{a.board.left + inset, a.board.right - inset,
-                    a.board.top + inset, a.board.bottom - inset, 0.045f * bw};
-        }
-        pr /= n;
-        return new float[]{minX - pr, maxX + pr, minY - pr, maxY + pr, pr};
-    }
-
-    private static boolean nearPocket(Analysis a, float x, float y, float r) {
-        for (Pocket p : a.pockets) {
-            float dx = p.x - x;
-            float dy = p.y - y;
-            if (Math.sqrt(dx * dx + dy * dy) < r) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean insideBoard(Analysis a, float gx, float gy, float r) {
-        return !(gx < a.board.left + r || gx > a.board.right - r
-                || gy < a.board.top + r || gy > a.board.bottom - r);
-    }
-
-    /** How many coins (other than the striker and the ignored one) touch the moving disc's path. */
-    private static int blockSeg(Analysis a, Piece real, Piece ignore,
-                                float ax, float ay, float bx, float by, float rad) {
-        int n = 0;
-        for (Piece o : a.pieces) {
-            if (o == real || o == ignore) {
-                continue;
-            }
-            if (segDist(o.x, o.y, ax, ay, bx, by) < o.radius + rad) {
-                n++;
-            }
-        }
-        return n;
-    }
-
-    // ------------------------------------------------------------ shot kinds
-
-    private static Shot direct(Analysis a, Piece real, Piece t, Pocket p,
-                               float stX, float stY, float sr, float bw) {
-        float tx = p.x - t.x;
-        float ty = p.y - t.y;
-        float tLen = (float) Math.sqrt(tx * tx + ty * ty);
-        if (tLen < 1f) {
-            return null;
-        }
-        float ux = tx / tLen;
-        float uy = ty / tLen;
-
-        float gx = t.x - ux * (t.radius + sr);
-        float gy = t.y - uy * (t.radius + sr);
-        if (!insideBoard(a, gx, gy, sr)) {
-            return null;
-        }
-
-        float sx = gx - stX;
-        float sy = gy - stY;
-        float sLen = (float) Math.sqrt(sx * sx + sy * sy);
-        if (sLen < 1f) {
-            return null;
-        }
-        float vx = sx / sLen;
-        float vy = sy / sLen;
-        float cos = vx * ux + vy * uy;
-        if (cos < 0.2588f) {
-            return null;
-        }
-
-        int blockers = blockSeg(a, real, t, stX, stY, gx, gy, sr * 0.95f)
-                + blockSeg(a, real, t, t.x, t.y, p.x, p.y, t.radius * 0.95f);
-        float score = sLen + tLen * 1.5f + (1f - cos) * bw * 1.5f + blockers * bw;
-
-        Shot s = new Shot();
-        fill(s, sr, t, p, gx, gy, ux, uy, vx, vy, cos, sLen, tLen, bw);
-        s.strikerX = stX;
-        s.strikerY = stY;
-        s.score = score;
-        s.blockers = blockers;
-        s.aimX = gx;
-        s.aimY = gy;
-        s.strikerPath = new float[]{stX, stY, gx, gy};
-        s.coinPath = new float[]{t.x, t.y, p.x, p.y};
-        return s;
-    }
-
-    /** The coin bounces off one cushion (0 left, 1 right, 2 top, 3 bottom) and then drops in the pocket. */
-    private static Shot coinBank(Analysis a, Piece real, Piece t, Pocket p, int wall, float[] walls,
-                                 float stX, float stY, float sr, float bw) {
-        float c;
-        float rx;
-        float ry;
-        if (wall == 0) {
-            c = walls[0] + t.radius;
-            rx = 2f * c - p.x;
-            ry = p.y;
-        } else if (wall == 1) {
-            c = walls[1] - t.radius;
-            rx = 2f * c - p.x;
-            ry = p.y;
-        } else if (wall == 2) {
-            c = walls[2] + t.radius;
-            rx = p.x;
-            ry = 2f * c - p.y;
-        } else {
-            c = walls[3] - t.radius;
-            rx = p.x;
-            ry = 2f * c - p.y;
-        }
-        float dx = rx - t.x;
-        float dy = ry - t.y;
-        float len = (float) Math.sqrt(dx * dx + dy * dy);
-        if (len < 1f) {
-            return null;
-        }
-        float k;
-        if (wall < 2) {
-            if (Math.abs(dx) < 1e-3f) {
-                return null;
-            }
-            k = (c - t.x) / dx;
-        } else {
-            if (Math.abs(dy) < 1e-3f) {
-                return null;
-            }
-            k = (c - t.y) / dy;
-        }
-        if (k <= 0.02f || k >= 0.98f) {
-            return null;
-        }
-        float bx = t.x + dx * k;
-        float by = t.y + dy * k;
-        if (!onWall(wall, bx, by, walls) || nearPocket(a, bx, by, walls[4] * 1.8f)) {
-            return null;
-        }
-
-        float ux = dx / len;
-        float uy = dy / len;
-        float gx = t.x - ux * (t.radius + sr);
-        float gy = t.y - uy * (t.radius + sr);
-        if (!insideBoard(a, gx, gy, sr)) {
-            return null;
-        }
-        float sx = gx - stX;
-        float sy = gy - stY;
-        float sLen = (float) Math.sqrt(sx * sx + sy * sy);
-        if (sLen < 1f) {
-            return null;
-        }
-        float vx = sx / sLen;
-        float vy = sy / sLen;
-        float cos = vx * ux + vy * uy;
-        if (cos < 0.2588f) {
-            return null;
-        }
-
-        float leg1 = (float) Math.sqrt((bx - t.x) * (bx - t.x) + (by - t.y) * (by - t.y));
-        float leg2 = (float) Math.sqrt((p.x - bx) * (p.x - bx) + (p.y - by) * (p.y - by));
-        float tLen = leg1 + leg2;
-        int blockers = blockSeg(a, real, t, stX, stY, gx, gy, sr * 0.95f)
-                + blockSeg(a, real, t, t.x, t.y, bx, by, t.radius * 0.95f)
-                + blockSeg(a, real, t, bx, by, p.x, p.y, t.radius * 0.95f);
-        float score = sLen + tLen * 1.5f + (1f - cos) * bw * 1.5f + blockers * bw + 0.35f * bw;
-
-        Shot s = new Shot();
-        fill(s, sr, t, p, gx, gy, ux, uy, vx, vy, cos, sLen, tLen, bw);
-        s.power = Math.min(1f, s.power + 0.1f);
-        s.strikerX = stX;
-        s.strikerY = stY;
-        s.score = score;
-        s.blockers = blockers;
-        s.bank = true;
-        s.aimX = gx;
-        s.aimY = gy;
-        s.strikerPath = new float[]{stX, stY, gx, gy};
-        s.coinPath = new float[]{t.x, t.y, bx, by, p.x, p.y};
-        return s;
-    }
-
-    /** The striker bounces off one cushion (0 left, 1 right, 2 top) and then hits the coin towards the pocket. */
-    private static Shot strikerBank(Analysis a, Piece real, Piece t, Pocket p, int wall, float[] walls,
-                                    float stX, float stY, float sr, float bw) {
-        float tx = p.x - t.x;
-        float ty = p.y - t.y;
-        float tLen = (float) Math.sqrt(tx * tx + ty * ty);
-        if (tLen < 1f) {
-            return null;
-        }
-        float ux = tx / tLen;
-        float uy = ty / tLen;
-        float gx = t.x - ux * (t.radius + sr);
-        float gy = t.y - uy * (t.radius + sr);
-        if (!insideBoard(a, gx, gy, sr)) {
-            return null;
-        }
-
-        float c;
-        float rx;
-        float ry;
-        if (wall == 0) {
-            c = walls[0] + sr;
-            rx = 2f * c - gx;
-            ry = gy;
-        } else if (wall == 1) {
-            c = walls[1] - sr;
-            rx = 2f * c - gx;
-            ry = gy;
-        } else {
-            c = walls[2] + sr;
-            rx = gx;
-            ry = 2f * c - gy;
-        }
-        float dx = rx - stX;
-        float dy = ry - stY;
-        float k;
-        if (wall < 2) {
-            if (Math.abs(dx) < 1e-3f) {
-                return null;
-            }
-            k = (c - stX) / dx;
-        } else {
-            if (Math.abs(dy) < 1e-3f) {
-                return null;
-            }
-            k = (c - stY) / dy;
-        }
-        if (k <= 0.02f || k >= 0.98f) {
-            return null;
-        }
-        float bx = stX + dx * k;
-        float by = stY + dy * k;
-        if (!onWall(wall, bx, by, walls) || nearPocket(a, bx, by, walls[4] * 1.8f)) {
-            return null;
-        }
-
-        float ex = gx - bx;
-        float ey = gy - by;
-        float eLen = (float) Math.sqrt(ex * ex + ey * ey);
-        if (eLen < 1f) {
-            return null;
-        }
-        float vx = ex / eLen;
-        float vy = ey / eLen;
-        float cos = vx * ux + vy * uy;
-        if (cos < 0.2588f) {
-            return null;
-        }
-
-        float sLen = (float) Math.sqrt((bx - stX) * (bx - stX) + (by - stY) * (by - stY)) + eLen;
-        int blockers = blockSeg(a, real, t, stX, stY, bx, by, sr * 0.95f)
-                + blockSeg(a, real, t, bx, by, gx, gy, sr * 0.95f)
-                + blockSeg(a, real, t, t.x, t.y, p.x, p.y, t.radius * 0.95f);
-        float score = sLen + tLen * 1.5f + (1f - cos) * bw * 1.5f + blockers * bw + 0.35f * bw;
-
-        Shot s = new Shot();
-        fill(s, sr, t, p, gx, gy, ux, uy, vx, vy, cos, sLen, tLen, bw);
-        s.power = Math.min(1f, s.power + 0.1f);
-        s.strikerX = stX;
-        s.strikerY = stY;
-        s.score = score;
-        s.blockers = blockers;
-        s.bank = true;
-        s.aimX = bx;
-        s.aimY = by;
-        s.strikerPath = new float[]{stX, stY, bx, by, gx, gy};
-        s.coinPath = new float[]{t.x, t.y, p.x, p.y};
-        return s;
-    }
-
-    /** Is the cushion point inside the stretch of that cushion (not beyond the corners)? */
-    private static boolean onWall(int wall, float bx, float by, float[] walls) {
-        if (wall < 2) {
-            return by > walls[2] && by < walls[3];
-        }
-        return bx > walls[0] && bx < walls[1];
-    }
-
-    private static void fill(Shot best, float sr, Piece t, Pocket p, float gx, float gy,
-                             float ux, float uy, float vx, float vy, float cos,
-                             float sLen, float tLen, float boardW) {
-        best.valid = true;
-        best.target = t;
-        best.pocket = p;
-        best.ghostX = gx;
-        best.ghostY = gy;
-        best.contactX = gx + ux * sr;
-        best.contactY = gy + uy * sr;
+    private static Shot make(int kind, Piece t, Pocket p, float sx, float sy, float aimX, float aimY,
+                             float ghostX, float ghostY, float bankX, float bankY, float cos,
+                             float travelPx, int blockers, float score, float boardW) {
+        Shot sh = new Shot();
+        sh.valid = true;
+        sh.kind = kind;
+        sh.target = t;
+        sh.pocket = p;
+        sh.strikerX = sx;
+        sh.strikerY = sy;
+        sh.aimX = aimX;
+        sh.aimY = aimY;
+        sh.ghostX = ghostX;
+        sh.ghostY = ghostY;
+        sh.bankX = bankX;
+        sh.bankY = bankY;
         float c = Math.max(-1f, Math.min(1f, cos));
-        best.cutAngleDeg = (float) Math.toDegrees(Math.acos(c));
-        float rx = vx - c * ux;
-        float ry = vy - c * uy;
-        float rLen = (float) Math.sqrt(rx * rx + ry * ry);
-        if (rLen > 1e-4f) {
-            best.afterDx = rx / rLen;
-            best.afterDy = ry / rLen;
-        } else {
-            best.afterDx = 0f;
-            best.afterDy = 0f;
+        sh.cutAngleDeg = (float) Math.toDegrees(Math.acos(c));
+        sh.blockers = blockers;
+        sh.score = score;
+        float travel = travelPx / Math.max(1f, boardW * 1.6f);
+        float cutPenalty = sh.cutAngleDeg / 75f * 0.15f;
+        float power = 0.3f + 0.7f * travel + cutPenalty;
+        if (kind != 0) power *= 1.25f;
+        sh.power = Math.max(0.3f, Math.min(1f, power));
+        return sh;
+    }
+
+    /** The best few different shots (one per coin, pocket and kind), cheapest first. */
+    public static List<Shot> distinctTop(List<Shot> all, int count) {
+        List<Shot> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Shot s : all) {
+            String key = Math.round(s.target.x) + ":" + Math.round(s.target.y) + ":"
+                    + Math.round(s.pocket.x) + ":" + Math.round(s.pocket.y) + ":" + s.kind;
+            if (!seen.add(key)) continue;
+            out.add(s);
+            if (out.size() >= count) break;
         }
-        float travel = (sLen + tLen) / Math.max(1f, boardW * 1.6f);
-        float cutPenalty = best.cutAngleDeg / 75f * 0.15f;
-        best.power = Math.max(0.3f, Math.min(1f, 0.3f + 0.7f * travel + cutPenalty));
+        return out;
+    }
+
+    /** The single best shot, or an "aim at the nearest coin" shot when nothing fits. */
+    public static Shot best(Analysis a, List<Shot> all, boolean anyCoin) {
+        if (!all.isEmpty()) return all.get(0);
+        Shot fallback = new Shot();
+        if (a == null || a.striker == null || !a.board.detected) return fallback;
+        aimNearest(fallback, a, a.striker, anyCoin, a.board.width());
+        return fallback;
     }
 
     /** Last resort: hit the nearest wanted coin head-on and let it go towards its closest pocket. */
-    private static void aimNearest(Shot best, Analysis a, float stX, float stY, float sr,
-                                   PieceType wanted, float boardW) {
-        Piece real = a.striker;
+    private static void aimNearest(Shot best, Analysis a, Piece s, boolean anyCoin, float boardW) {
         Piece near = null;
         float nearD = Float.MAX_VALUE;
         for (Piece t : a.pieces) {
-            if (!isWanted(t, real, wanted)) {
-                continue;
-            }
-            float dx = t.x - stX, dy = t.y - stY;
-            float d = (float) Math.sqrt(dx * dx + dy * dy);
+            if (t == s || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) continue;
+            if (!anyCoin && !t.mine && t.type != PieceType.QUEEN) continue;
+            float d = dist(t.x, t.y, s.x, s.y);
             if (d < nearD && d > 1f) {
                 nearD = d;
                 near = t;
             }
         }
-        if (near == null) {
-            return;
-        }
+        if (near == null) return;
         Pocket pk = null;
         float pd = Float.MAX_VALUE;
         for (Pocket p : a.pockets) {
-            float dx = p.x - near.x, dy = p.y - near.y;
-            float d = dx * dx + dy * dy;
+            float d = dist(p.x, p.y, near.x, near.y);
             if (d < pd) {
                 pd = d;
                 pk = p;
             }
         }
-        if (pk == null) {
-            return;
-        }
-        float vx = (near.x - stX) / nearD;
-        float vy = (near.y - stY) / nearD;
-        float gx = near.x - vx * (near.radius + sr);
-        float gy = near.y - vy * (near.radius + sr);
+        if (pk == null) return;
+        float vx = (near.x - s.x) / nearD;
+        float vy = (near.y - s.y) / nearD;
+        float gx = near.x - vx * (near.radius + s.radius);
+        float gy = near.y - vy * (near.radius + s.radius);
         float ux = pk.x - near.x, uy = pk.y - near.y;
         float uLen = (float) Math.sqrt(ux * ux + uy * uy);
-        if (uLen < 1f) {
-            return;
-        }
+        if (uLen < 1f) return;
         ux /= uLen;
         uy /= uLen;
         float cos = vx * ux + vy * uy;
-        fill(best, sr, near, pk, gx, gy, ux, uy, vx, vy, cos, nearD, uLen, boardW);
-        best.strikerX = stX;
-        best.strikerY = stY;
-        // Always worse than any real planned shot, so sliding never prefers a head-on fallback.
-        best.score = nearD + boardW * 100f;
-        best.blockers = 99;
-        best.aimX = gx;
-        best.aimY = gy;
-        best.strikerPath = new float[]{stX, stY, gx, gy};
-        best.coinPath = new float[]{near.x, near.y, pk.x, pk.y};
+        Shot f = make(0, near, pk, s.x, s.y, gx, gy, gx, gy, -1f, -1f, cos, nearD + uLen, 99,
+                nearD, boardW);
+        copy(f, best);
+    }
+
+    private static void copy(Shot from, Shot to) {
+        to.valid = from.valid;
+        to.kind = from.kind;
+        to.target = from.target;
+        to.pocket = from.pocket;
+        to.strikerX = from.strikerX;
+        to.strikerY = from.strikerY;
+        to.aimX = from.aimX;
+        to.aimY = from.aimY;
+        to.ghostX = from.ghostX;
+        to.ghostY = from.ghostY;
+        to.bankX = from.bankX;
+        to.bankY = from.bankY;
+        to.cutAngleDeg = from.cutAngleDeg;
+        to.afterDx = from.afterDx;
+        to.afterDy = from.afterDy;
+        to.score = from.score;
+        to.power = from.power;
+        to.blockers = from.blockers;
+    }
+
+    private static float dist(float ax, float ay, float bx, float by) {
+        float dx = ax - bx, dy = ay - by;
+        return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
     private static float segDist(float px, float py, float ax, float ay, float bx, float by) {

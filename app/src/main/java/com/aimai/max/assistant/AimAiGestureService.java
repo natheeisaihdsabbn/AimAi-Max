@@ -17,9 +17,9 @@ import android.view.accessibility.AccessibilityEvent;
 public class AimAiGestureService extends AccessibilityService {
     private static final String TAG = "AimAiAutoPlay";
     private static final String GAME_PACKAGE = "com.miniclip.carrom";
-    private static final long SCAN_INTERVAL_MS = 600L;
+    private static final long SCAN_INTERVAL_MS = 450L;
     /** In the lobby and menus there is no board, so scanning that often only slows the game down. */
-    private static final long IDLE_SCAN_INTERVAL_MS = 2500L;
+    private static final long IDLE_SCAN_INTERVAL_MS = 450L;
 
     private static volatile AimAiGestureService instance;
     private static volatile boolean gameForeground = false;

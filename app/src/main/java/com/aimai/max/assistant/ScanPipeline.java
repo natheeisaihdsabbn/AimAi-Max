@@ -8,15 +8,13 @@ import android.graphics.Color;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Turns one screenshot into a scan result and broadcasts it to the overlay. Not thread-safe: use one thread. */
+/**
+ * Turns one screenshot into a scan result plus the best shots, and broadcasts it to the overlay.
+ * Not thread-safe: use it from one thread.
+ */
 public class ScanPipeline {
 
     private static final long HOLD_LAST_MS = 1500L;
-    /** The game's striker slider sits this far (in board widths) below the bottom edge of the board. */
-    private static final float SLIDER_BELOW_BOARD = 0.368f;
-
-    /** True while the last scan found a carrom board. The scan loop slows down when it did not. */
-    public volatile boolean boardSeen = false;
 
     private int stableFrameCount = 0;
     private List<float[]> previousPieces = new ArrayList<>();
@@ -24,7 +22,6 @@ public class ScanPipeline {
     private long lastGoodAt = 0L;
 
     public void reset() {
-        boardSeen = false;
         stableFrameCount = 0;
         previousPieces = new ArrayList<>();
         lastGood = null;
@@ -43,75 +40,135 @@ public class ScanPipeline {
         return true;
     }
 
-    /**
-     * Which coins are mine? "AUTO" reads the little coin icon next to my name at the top-left of the
-     * game screen (black or white). Anything unclear means "any coin".
-     */
-    private CarromBoardAnalyzer.PieceType wantedCoins(Context ctx, Bitmap bmp) {
-        String mine = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
-                .getString("my_coins", "AUTO");
-        if ("BLACK".equals(mine)) return CarromBoardAnalyzer.PieceType.BLACK;
-        if ("WHITE".equals(mine)) return CarromBoardAnalyzer.PieceType.WHITE;
-        if ("ANY".equals(mine)) return null;
+    // ------------------------------------------------------------------ whose coins are whose
 
+    private static int[] hudColor(Bitmap bmp, float fx) {
         int w = bmp.getWidth(), h = bmp.getHeight();
-        int cx = Math.round(0.111f * w), cy = Math.round(0.161f * h);
-        float[] hsv = new float[3];
-        float sumS = 0, sumV = 0;
+        int cx = Math.round(fx * w), cy = Math.round(0.161f * h);
+        long r = 0, g = 0, b = 0;
         int n = 0;
         for (int dy = -6; dy <= 6; dy += 3) {
             for (int dx = -6; dx <= 6; dx += 3) {
                 int x = Math.max(0, Math.min(w - 1, cx + dx));
                 int y = Math.max(0, Math.min(h - 1, cy + dy));
-                Color.colorToHSV(bmp.getPixel(x, y), hsv);
-                sumS += hsv[1];
-                sumV += hsv[2];
+                int c = bmp.getPixel(x, y);
+                r += Color.red(c);
+                g += Color.green(c);
+                b += Color.blue(c);
                 n++;
             }
         }
-        float s = sumS / n, v = sumV / n;
-        if (v < 0.40f && s < 0.40f) return CarromBoardAnalyzer.PieceType.BLACK;
-        if (s < 0.25f && v > 0.70f) return CarromBoardAnalyzer.PieceType.WHITE;
-        return null;
+        return new int[]{(int) (r / n), (int) (g / n), (int) (b / n)};
     }
 
-    /** Pixel x,y pairs to 0..1 screen fractions. */
-    private static float[] normalize(float[] pts, float w, float h) {
-        if (pts == null) return new float[0];
-        float[] out = new float[pts.length];
-        for (int i = 0; i + 1 < pts.length; i += 2) {
-            out[i] = pts[i] / w;
-            out[i + 1] = pts[i + 1] / h;
+    private static float colorDist(int rgb, int[] c) {
+        float dr = Color.red(rgb) - c[0], dg = Color.green(rgb) - c[1], db = Color.blue(rgb) - c[2];
+        return (float) Math.sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    /**
+     * Marks which coins are mine. AUTO compares each coin with the little coin icon next to my name
+     * (top-left) and the one next to the opponent (top-right), so any coin skin works.
+     */
+    private void markMine(Context ctx, Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
+        String mode = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
+                .getString("my_coins", "AUTO");
+        int[] mineHud = hudColor(bmp, 0.111f);
+        int[] oppHud = hudColor(bmp, 0.889f);
+        int count = 0;
+        for (CarromBoardAnalyzer.Piece p : a.pieces) {
+            if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER) continue;
+            boolean mine;
+            if ("ANY".equals(mode)) {
+                mine = true;
+            } else if ("BLACK".equals(mode)) {
+                mine = p.type == CarromBoardAnalyzer.PieceType.BLACK;
+            } else if ("WHITE".equals(mode)) {
+                mine = p.type == CarromBoardAnalyzer.PieceType.WHITE;
+            } else {
+                float dm = colorDist(p.rgb, mineHud);
+                float dop = colorDist(p.rgb, oppHud);
+                mine = p.type != CarromBoardAnalyzer.PieceType.QUEEN && dm < dop && dm < 150f;
+            }
+            p.mine = mine;
+            if (mine) count++;
+        }
+        if (count == 0) {
+            // the icon could not be matched: do not stand still, treat every coin as playable
+            for (CarromBoardAnalyzer.Piece p : a.pieces) {
+                if (p != a.striker && p.type != CarromBoardAnalyzer.PieceType.STRIKER) p.mine = true;
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ output
+
+    private static float[] normalizePaths(float[] raw, float fw, float fh) {
+        if (raw == null) return new float[0];
+        float[] out = new float[raw.length];
+        int i = 0;
+        while (i + 1 < raw.length) {
+            out[i] = raw[i];
+            int n = (int) raw[i + 1];
+            out[i + 1] = raw[i + 1];
+            int p = i + 2;
+            for (int k = 0; k < n && p + 1 < raw.length; k++) {
+                out[p] = raw[p] / fw;
+                out[p + 1] = raw[p + 1] / fh;
+                p += 2;
+            }
+            i = p;
         }
         return out;
+    }
+
+    private static void putPlan(Intent in, String pre, ShotSearch.Outcome o, float fw, float fh) {
+        if (o == null || o.shot == null || !o.shot.valid) {
+            in.putExtra(pre + "Found", false);
+            return;
+        }
+        CarromShotPlanner.Shot s = o.shot;
+        in.putExtra(pre + "Found", true);
+        in.putExtra(pre + "StrikerX", s.strikerX / fw);
+        in.putExtra(pre + "StrikerY", s.strikerY / fh);
+        in.putExtra(pre + "AimX", s.aimX / fw);
+        in.putExtra(pre + "AimY", s.aimY / fh);
+        in.putExtra(pre + "GhostX", s.ghostX / fw);
+        in.putExtra(pre + "GhostY", s.ghostY / fh);
+        in.putExtra(pre + "TargetX", s.target.x / fw);
+        in.putExtra(pre + "TargetY", s.target.y / fh);
+        in.putExtra(pre + "PocketX", s.pocket.x / fw);
+        in.putExtra(pre + "PocketY", s.pocket.y / fh);
+        in.putExtra(pre + "Kind", s.kind);
+        in.putExtra(pre + "Power", ShotSearch.STRENGTH[Math.max(0, Math.min(2, o.level))]);
+        in.putExtra(pre + "SimScore", o.simScore);
+        in.putExtra(pre + "Pots", o.potsSomething);
+        in.putExtra(pre + "Blockers", s.blockers);
+        in.putExtra(pre + "Paths", normalizePaths(o.paths, fw, fh));
     }
 
     public void process(Context ctx, Bitmap bmp) {
         long started = android.os.SystemClock.elapsedRealtime();
         CarromBoardAnalyzer.Analysis result = CarromBoardAnalyzer.analyze(bmp);
-        long now = android.os.SystemClock.elapsedRealtime();
+        long scanned = android.os.SystemClock.elapsedRealtime();
         float frameW = bmp.getWidth();
         float frameH = bmp.getHeight();
 
         // Our own guide drawing can hide the striker for one frame. Keep the last good scan briefly.
         if (result.board.detected && result.striker != null) {
             lastGood = result;
-            lastGoodAt = now;
-        } else if (lastGood != null && now - lastGoodAt < HOLD_LAST_MS) {
+            lastGoodAt = scanned;
+        } else if (lastGood != null && scanned - lastGoodAt < HOLD_LAST_MS) {
             result = lastGood;
         } else {
             lastGood = null;
         }
-
-        boardSeen = result.board.detected;
 
         int strikerCount = result.striker != null ? 1 : 0;
         int coinCount = 0;
         for (CarromBoardAnalyzer.Piece p : result.pieces) {
             if (p != result.striker) coinCount++;
         }
-        android.util.Log.d("AimAiMax", "scan " + (now - started) + "ms pockets=" + result.pockets.size()
-                + " pieces=" + result.pieces.size() + " striker=" + strikerCount + " coins=" + coinCount);
 
         float tol = Math.max(6f, 0.012f * Math.max(1f, result.board.width()));
         if (samePositions(previousPieces, result.pieces, tol)) {
@@ -131,56 +188,50 @@ public class ScanPipeline {
 
         CarromBoardAnalyzer.Piece striker = result.striker;
         if (striker != null && result.board.detected) {
-            CarromBoardAnalyzer.PieceType wanted = wantedCoins(ctx, bmp);
-            boolean slide = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
+            markMine(ctx, bmp, result);
+            boolean slideOn = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
                     .getBoolean("slide_enabled", true);
-            CarromShotPlanner.Shot shot = slide
-                    ? CarromShotPlanner.planBest(result, wanted)
-                    : CarromShotPlanner.plan(result, wanted);
+            ShotSearch.Result cur = ShotSearch.search(result, false, false, 260L, 24);
+            ShotSearch.Result best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;
+
             guideIntent.putExtra("isStriker", true);
             guideIntent.putExtra("pieceX", striker.x / frameW);
             guideIntent.putExtra("pieceY", striker.y / frameH);
-            guideIntent.putExtra("plannedX", (shot.valid ? shot.strikerX : striker.x) / frameW);
-            guideIntent.putExtra("sliderY",
-                    (result.board.bottom + SLIDER_BELOW_BOARD * result.board.width()) / frameH);
             guideIntent.putExtra("strikerRadius", striker.radius / frameW);
             guideIntent.putExtra("strikerRadiusX", striker.radius / frameW);
             guideIntent.putExtra("strikerRadiusY", striker.radius / frameH);
-            guideIntent.putExtra("shotFound", shot.valid);
-            if (shot.valid) {
-                guideIntent.putExtra("targetPieceX", shot.target.x / frameW);
-                guideIntent.putExtra("targetPieceY", shot.target.y / frameH);
-                guideIntent.putExtra("targetPieceRadiusX", shot.target.radius / frameW);
-                guideIntent.putExtra("targetPieceRadiusY", shot.target.radius / frameH);
-                guideIntent.putExtra("ghostX", shot.ghostX / frameW);
-                guideIntent.putExtra("ghostY", shot.ghostY / frameH);
-                guideIntent.putExtra("shotPower", shot.power);
-                guideIntent.putExtra("pocketX", shot.pocket.x / frameW);
-                guideIntent.putExtra("pocketY", shot.pocket.y / frameH);
-                guideIntent.putExtra("pocketRadius", shot.pocket.radius / frameW);
-                guideIntent.putExtra("cutAngle", shot.cutAngleDeg);
-                guideIntent.putExtra("bank", shot.bank);
-                guideIntent.putExtra("aimX", shot.aimX / frameW);
-                guideIntent.putExtra("aimY", shot.aimY / frameH);
-                guideIntent.putExtra("strikerPath", normalize(shot.strikerPath, frameW, frameH));
-                guideIntent.putExtra("coinPath", normalize(shot.coinPath, frameW, frameH));
-                float[] alts = new float[shot.alts.size() * 4];
-                for (int i = 0; i < shot.alts.size(); i++) {
-                    float[] alt = shot.alts.get(i);
-                    alts[i * 4] = alt[0] / frameW;
-                    alts[i * 4 + 1] = alt[1] / frameH;
-                    alts[i * 4 + 2] = alt[2] / frameW;
-                    alts[i * 4 + 3] = alt[3] / frameH;
-                }
-                guideIntent.putExtra("alts", alts);
-                guideIntent.putExtra("targetFound", true);
-            } else {
-                guideIntent.putExtra("targetFound", false);
+            float base = Math.min(result.board.width(), result.board.height());
+            guideIntent.putExtra("sliderY", (result.board.bottom + 0.395f * base) / frameH);
+            float pocketR = 0f;
+            for (CarromBoardAnalyzer.Pocket pk : result.pockets) pocketR += pk.radius / 4f;
+            guideIntent.putExtra("pocketRadius", pocketR / frameW);
+
+            putPlan(guideIntent, "cur", cur.best, frameW, frameH);
+            putPlan(guideIntent, "best", best == null ? null : best.best, frameW, frameH);
+
+            // other shots tried, shown thin ("visible search")
+            List<Float> altList = new ArrayList<>();
+            for (ShotSearch.Outcome o : cur.alts) {
+                if (o.paths == null) continue;
+                for (float v : o.paths) altList.add(v);
             }
+            float[] alts = new float[altList.size()];
+            for (int i = 0; i < alts.length; i++) alts[i] = altList.get(i);
+            guideIntent.putExtra("curAlts", normalizePaths(alts, frameW, frameH));
+
+            boolean curFound = cur.best != null && cur.best.shot != null && cur.best.shot.valid;
+            guideIntent.putExtra("targetFound", curFound);
+            guideIntent.putExtra("shotFound", curFound);
+            long done = android.os.SystemClock.elapsedRealtime();
+            android.util.Log.d("AimAiMax", "scan " + (scanned - started) + "ms, search " + (done - scanned)
+                    + "ms, coins=" + coinCount + ", tried=" + cur.tried
+                    + (curFound ? ", pots=" + cur.best.potsSomething + ", kind=" + cur.best.shot.kind : ", no shot"));
         } else {
             guideIntent.putExtra("isStriker", false);
             guideIntent.putExtra("targetFound", false);
             guideIntent.putExtra("shotFound", false);
+            guideIntent.putExtra("curFound", false);
+            guideIntent.putExtra("bestFound", false);
         }
         ctx.sendBroadcast(guideIntent);
 

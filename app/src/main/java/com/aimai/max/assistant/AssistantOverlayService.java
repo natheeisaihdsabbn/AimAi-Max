@@ -28,12 +28,12 @@ import android.widget.Toast;
 
 public class AssistantOverlayService extends Service {
 
-    private static final long MIN_SHOT_GAP_MS = 2200L;
-    private static final long SETTLE_MIN_MS = 2500L;
+    private static final long MIN_SHOT_GAP_MS = 1000L;
+    private static final long SETTLE_MIN_MS = 1100L;
     /** If the board never reports a change after a shot, allow a retry after this long. */
-    private static final long SETTLE_TIMEOUT_MS = 15000L;
+    private static final long SETTLE_TIMEOUT_MS = 10000L;
     /** Wait this long after sliding the striker before looking at the board again. */
-    private static final long SLIDER_GAP_MS = 1300L;
+    private static final long SLIDER_GAP_MS = 900L;
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
@@ -107,111 +107,68 @@ public class AssistantOverlayService extends Service {
             }
 
             setOverlayAlpha(0.8f);
+            if (pathView != null) pathView.clear();
             float x = intent.getFloatExtra("pieceX", 0.5f);
+            float y = intent.getFloatExtra("pieceY", 0.8f);
             aimGuideView.setBodyRadius(intent.getFloatExtra("strikerRadius", 0f));
             aimGuideView.setPocketRadius(intent.getFloatExtra("pocketRadius", 0f));
-            float y = intent.getFloatExtra("pieceY", 0.8f);
-            // Where the striker should stand for the best shot (it can slide along the baseline).
-            float px = intent.getFloatExtra("plannedX", x);
             float sliderY = intent.getFloatExtra("sliderY", 0f);
-            boolean targetFound = intent.getBooleanExtra("targetFound", false);
-            boolean plannedShot = intent.getBooleanExtra("shotFound", false);
-            boolean bankShot = plannedShot && intent.getBooleanExtra("bank", false);
-            float aimX = intent.getFloatExtra("aimX", Float.NaN);
-            float aimY = intent.getFloatExtra("aimY", Float.NaN);
-            if (pathView != null) {
-                if (plannedShot) {
-                    pathView.setShot(bankShot, intent.getFloatArrayExtra("strikerPath"),
-                            intent.getFloatArrayExtra("coinPath"), intent.getFloatArrayExtra("alts"));
-                } else {
-                    pathView.clear();
-                }
+            boolean curFound = intent.getBooleanExtra("curFound", false);
+            boolean bestFound = intent.getBooleanExtra("bestFound", false);
+            float curScore = intent.getFloatExtra("curSimScore", -1000f);
+            float bestScore = intent.getFloatExtra("bestSimScore", -1000f);
+            float bestX = intent.getFloatExtra("bestStrikerX", x);
+
+            // Slide the striker only when another spot is clearly better, and only twice per shot.
+            boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
+            boolean wantSlide = slideOn && bestFound && sliderTries < 2 && Math.abs(bestX - x) > 0.02f
+                    && (!curFound || bestScore > curScore + 60f);
+
+            // Draw the shot that will be played: the simulated path of the striker and every coin it moves,
+            // including wall bounces. "Visible search" also shows the other shots that were tried, thin.
+            String drawPre = (wantSlide || !curFound) ? "best" : "cur";
+            if ("best".equals(drawPre) && !bestFound) drawPre = "cur";
+            if (intent.getBooleanExtra(drawPre + "Found", false)) {
+                aimGuideView.setSearch(intent.getFloatArrayExtra(drawPre + "Paths"),
+                        settings().getBoolean("visible_search", true) ? intent.getFloatArrayExtra("curAlts") : null,
+                        intent.getFloatExtra(drawPre + "GhostX", -1f),
+                        intent.getFloatExtra(drawPre + "GhostY", -1f));
+                aimGuideView.setGuideEnabled(true);
+            } else {
+                aimGuideView.clearSearch();
+                aimGuideView.setGuideEnabled(false);
             }
 
-            if (autoPlay && !waitingForSettle && boardStable && targetFound && plannedShot
+            if (autoPlay && !waitingForSettle && boardStable && (curFound || bestFound)
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
-                // Straight and coin-bank shots aim at the ghost spot; a striker bank aims at the cushion point.
-                float gx = Float.isNaN(aimX) ? intent.getFloatExtra("ghostX", x) : aimX;
-                float gy = Float.isNaN(aimY) ? intent.getFloatExtra("ghostY", y) : aimY;
-                boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
-                float slideErr = Math.abs(px - x);
-                if (slideOn && slideErr > 0.008f) {
-                    if (sliderTries == 0) slideStartErr = slideErr;
-                    boolean noProgress = sliderTries >= 2 && slideErr > slideStartErr * 0.75f;
-                    if (slideErr <= 0.03f || sliderTries >= 4 || noProgress) {
-                        // Close enough (or sliding is not getting closer): stop sliding and plan the
-                        // shot again from the place where the striker really stands.
-                        settings().edit().putBoolean("slide_enabled", false).apply();
-                        hint("Striker placed, aiming");
-                    } else if (now - lastSliderAt > SLIDER_GAP_MS) {
-                        int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
-                        AimAiGestureService.dragSlider(x * size[0], px * size[0],
-                                sliderY * size[1], size[0], size[1]);
+                int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+                int sw = size[0];
+                int sh = size[1];
+                if (wantSlide) {
+                    if (now - lastSliderAt > SLIDER_GAP_MS) {
+                        AimAiGestureService.dragSlider(x * sw, bestX * sw, sliderY * sh, sw, sh);
                         sliderTries++;
                         lastSliderAt = now;
-                        hint("Moving striker " + sliderTries + "/4");
                     }
-                } else {
-                    boolean strikerMoved = lastAutoStrikerX < 0f
-                            || Math.abs(x - lastAutoStrikerX) + Math.abs(y - lastAutoStrikerY) > 0.012f;
-                    if (strikerMoved) {
-                        // Same real-screen space the capture used, so the swipe starts on the striker.
-                        int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
-                        int sw = size[0];
-                        int sh = size[1];
-                        boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
-                        float powerMul = settings().getInt("power_pct", 100) / 100f;
-                        // Human style drags the finger slower, and a little different every time.
-                        AimAiGestureService.swipeDurationMs = humanStyle()
-                                ? 480 + (int) (Math.random() * 220) : 300;
-                        if (AimAiGestureService.swipeShot(x * sw, y * sh, gx * sw, gy * sh, sw, sh,
-                                intent.getFloatExtra("shotPower", 0.5f), pullBack, powerMul)) {
-                            waitingForSettle = true;
-                            sawMotionAfterShot = false;
-                            lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
-                            lastAutoStrikerX = x;
-                            lastAutoStrikerY = y;
-                            sliderTries = 0;
-                            settings().edit().putBoolean("slide_enabled", true).apply();
-                            hint("Shot sent");
-                        }
+                } else if (curFound) {
+                    float aimX = intent.getFloatExtra("curAimX", x);
+                    float aimY = intent.getFloatExtra("curAimY", y);
+                    boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
+                    float powerMul = settings().getInt("power_pct", 100) / 100f;
+                    AimAiGestureService.swipeDurationMs = humanStyle()
+                            ? 480 + (int) (Math.random() * 220) : 260;
+                    if (AimAiGestureService.swipeShot(x * sw, y * sh, aimX * sw, aimY * sh, sw, sh,
+                            intent.getFloatExtra("curPower", 0.6f), pullBack, powerMul)) {
+                        waitingForSettle = true;
+                        sawMotionAfterShot = false;
+                        lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
+                        lastAutoStrikerX = x;
+                        lastAutoStrikerY = y;
+                        sliderTries = 0;
                     }
                 }
             }
-
-            if (targetFound) {
-                float targetX = intent.getFloatExtra("targetPieceX", x);
-                float targetY = intent.getFloatExtra("targetPieceY", y);
-                float ghostX = intent.getFloatExtra("ghostX", targetX);
-                float ghostY = intent.getFloatExtra("ghostY", targetY);
-                float pocketX = intent.getFloatExtra("pocketX", targetX);
-                float pocketY = intent.getFloatExtra("pocketY", targetY);
-                if (plannedShot) {
-                    if (bankShot) {
-                        // A bent route cannot be drawn by the straight guide; the path view draws it.
-                        aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
-                    } else {
-                        aimGuideView.setGuide(px, y, ghostX, ghostY);
-                        aimGuideView.setShotRoute(ghostX, ghostY, pocketX, pocketY, true);
-                    }
-                } else {
-                    aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
-                    float[] contact = CarromPhysicsEngine.calculateCollisionContactXY(
-                            x, y, targetX, targetY,
-                            intent.getFloatExtra("strikerRadiusX", 0f),
-                            intent.getFloatExtra("strikerRadiusY", 0f),
-                            intent.getFloatExtra("targetPieceRadiusX", 0f),
-                            intent.getFloatExtra("targetPieceRadiusY", 0f));
-                    if (contact != null) aimGuideView.setGuide(x, y, contact[0], contact[1]);
-                    else aimGuideView.setGuide(x, y, targetX, targetY);
-                }
-            } else {
-                aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
-                aimGuideView.setGuide(x, y, x, Math.max(0.05f, y - 0.25f));
-            }
-
-            aimGuideView.setGuideEnabled(!bankShot);
         }
     };
 
@@ -707,6 +664,11 @@ public class AssistantOverlayService extends Service {
             settings().edit().putBoolean("slide_enabled", true).apply();
         });
         col.addView(switchRow("AUTO PLAY", autoSwitch));
+
+        Switch searchSwitch = accentSwitch(settings().getBoolean("visible_search", true));
+        searchSwitch.setOnCheckedChangeListener((b, checked) ->
+                settings().edit().putBoolean("visible_search", checked).apply());
+        col.addView(switchRow("VISIBLE SEARCH", searchSwitch));
 
         col.addView(sectionTitle("PLAY STYLE"));
         LinearLayout styleRow = new LinearLayout(this);
