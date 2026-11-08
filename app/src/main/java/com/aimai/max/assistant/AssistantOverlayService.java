@@ -677,11 +677,11 @@ public class AssistantOverlayService extends Service {
             final int index = i;
             TextView b = label(playNames[i], 13, Color.WHITE, false);
             b.setGravity(Gravity.CENTER);
-            b.setBackground(shape(playKeys[i].equals(savedPlay) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            AimAiUiStyle.chip(b, playKeys[i].equals(savedPlay));
             b.setOnClickListener(v -> {
                 settings().edit().putString("play_style", playKeys[index]).apply();
                 for (int k = 0; k < 2; k++) {
-                    playButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                    AimAiUiStyle.chip(playButtons[k], k == index);
                 }
             });
             playButtons[i] = b;
@@ -724,11 +724,11 @@ public class AssistantOverlayService extends Service {
             final int index = i;
             TextView gb = label(gameNames[i], 12, Color.WHITE, false);
             gb.setGravity(Gravity.CENTER);
-            gb.setBackground(shape(gameKeys[i].equals(savedGame) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            AimAiUiStyle.chip(gb, gameKeys[i].equals(savedGame));
             gb.setOnClickListener(v -> {
                 settings().edit().putString("queue_game", gameKeys[index]).apply();
                 for (int k = 0; k < 3; k++) {
-                    gameButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                    AimAiUiStyle.chip(gameButtons[k], k == index);
                 }
             });
             gameButtons[i] = gb;
@@ -796,11 +796,11 @@ public class AssistantOverlayService extends Service {
             final int index = i;
             TextView b = label(swipeNames[i], 13, Color.WHITE, false);
             b.setGravity(Gravity.CENTER);
-            b.setBackground(shape(swipeKeys[i].equals(savedSwipe) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            AimAiUiStyle.chip(b, swipeKeys[i].equals(savedSwipe));
             b.setOnClickListener(v -> {
                 settings().edit().putString("swipe_mode", swipeKeys[index]).apply();
                 for (int k = 0; k < 2; k++) {
-                    swipeButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                    AimAiUiStyle.chip(swipeButtons[k], k == index);
                 }
             });
             swipeButtons[i] = b;
@@ -821,10 +821,10 @@ public class AssistantOverlayService extends Service {
         powerValue.setGravity(Gravity.CENTER);
         TextView minus = label("−", 22, Color.WHITE, true);
         minus.setGravity(Gravity.CENTER);
-        minus.setBackground(shape(Color.rgb(70, 74, 120), 12));
+        AimAiUiStyle.chip(minus, false);
         TextView plus = label("+", 22, Color.WHITE, true);
         plus.setGravity(Gravity.CENTER);
-        plus.setBackground(shape(Color.rgb(70, 74, 120), 12));
+        AimAiUiStyle.chip(plus, false);
         minus.setOnClickListener(v -> {
             int value = Math.max(30, settings().getInt("power_pct", 100) - 10);
             settings().edit().putInt("power_pct", value).apply();
@@ -884,11 +884,11 @@ public class AssistantOverlayService extends Service {
             final int index = i;
             TextView b = label(coinNames[i], 12, Color.WHITE, false);
             b.setGravity(Gravity.CENTER);
-            b.setBackground(shape(coinKeys[i].equals(savedCoins) ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+            AimAiUiStyle.chip(b, coinKeys[i].equals(savedCoins));
             b.setOnClickListener(v -> {
                 settings().edit().putString("my_coins", coinKeys[index]).apply();
                 for (int k = 0; k < 4; k++) {
-                    coinButtons[k].setBackground(shape(k == index ? Color.rgb(70, 74, 120) : Color.rgb(24, 28, 38), 12));
+                    AimAiUiStyle.chip(coinButtons[k], k == index);
                 }
             });
             coinButtons[i] = b;
@@ -905,6 +905,7 @@ public class AssistantOverlayService extends Service {
         col.addView(sectionTitle("GUIDE"));
         TextView reset = label("Reset guide settings", 13, Color.rgb(224, 128, 96), false);
         reset.setPadding(0, dp(4), 0, dp(10));
+        reset.setClickable(true);
         reset.setOnClickListener(v -> {
             selectedStyle = STYLE_NAMES[0];
             thickness = 8;
