@@ -31,6 +31,7 @@ import com.aimai.max.assistant.ScreenCaptureService;
 import com.aimai.max.ui.BannerView;
 import com.aimai.max.ui.BoardIconView;
 import com.aimai.max.ui.IconView;
+import com.aimai.max.ui.AimAiUiStyle;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -280,7 +281,7 @@ public class MainActivity extends Activity {
         TextView premium = label("Premium  →", 11, Color.rgb(235, 232, 250), true);
         premium.setGravity(Gravity.CENTER);
         premium.setPadding(dp(14), dp(5), dp(14), dp(5));
-        premium.setBackground(rounded(purple, 14));
+        AimAiUiStyle.surface(premium, true);
         premium.setOnClickListener(v -> showPage(1));
         premiumPill = premium;
         LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, -2);
@@ -374,7 +375,7 @@ public class MainActivity extends Activity {
         row.addView(text, new LinearLayout.LayoutParams(0, -2, 1f));
 
         FrameLayout more = new FrameLayout(this);
-        more.setBackground(rounded(Color.rgb(24, 26, 36), 22));
+        AimAiUiStyle.surface(more, false);
         TextView dots = label("•••", 12, muted, true);
         dots.setGravity(Gravity.CENTER);
         more.addView(dots, new FrameLayout.LayoutParams(-1, -1));
@@ -385,7 +386,7 @@ public class MainActivity extends Activity {
         LinearLayout launch = new LinearLayout(this);
         launch.setGravity(Gravity.CENTER_VERTICAL);
         launch.setPadding(dp(18), 0, dp(18), 0);
-        launch.setBackground(rounded(purple, 14));
+        AimAiUiStyle.surface(launch, true);
         TextView launchText = label("Launch", 15, Color.rgb(240, 238, 252), false);
         launch.addView(launchText, new LinearLayout.LayoutParams(0, -2, 1f));
         launch.addView(label("→", 18, Color.rgb(240, 238, 252), false));
