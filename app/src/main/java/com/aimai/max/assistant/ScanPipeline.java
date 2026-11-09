@@ -18,6 +18,9 @@ public class ScanPipeline {
 
     private int stableFrameCount = 0;
     private int looseFrameCount = 0;
+    private ShotSearch.Result cacheCur;
+    private ShotSearch.Result cacheBest;
+    private float cacheSx, cacheSy;
     private List<float[]> previousPieces = new ArrayList<>();
     private CarromBoardAnalyzer.Analysis lastGood;
     private long lastGoodAt = 0L;
@@ -27,6 +30,8 @@ public class ScanPipeline {
         looseFrameCount = 0;
         previousPieces = new ArrayList<>();
         lastGood = null;
+        cacheCur = null;
+        cacheBest = null;
     }
 
     private boolean samePositions(List<float[]> a, List<CarromBoardAnalyzer.Piece> b, float tol) {
@@ -190,6 +195,13 @@ public class ScanPipeline {
         boolean strictSame = samePositions(previousPieces, result.pieces, tol);
         boolean looseSame = strictSame || mostlySame(previousPieces, result.pieces, tol * 1.5f);
         looseFrameCount = looseSame ? looseFrameCount + 1 : 0;
+        CarromBoardAnalyzer.Piece sNow = result.striker;
+        boolean strikerShifted = sNow != null && cacheCur != null
+                && (Math.abs(sNow.x - cacheSx) > tol || Math.abs(sNow.y - cacheSy) > tol);
+        if (!looseSame || strikerShifted) {
+            cacheCur = null;
+            cacheBest = null;
+        }
         if (strictSame) {
             stableFrameCount++;
         } else {
@@ -211,8 +223,23 @@ public class ScanPipeline {
             markMine(ctx, bmp, result);
             boolean slideOn = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
                     .getBoolean("slide_enabled", true);
-            ShotSearch.Result cur = ShotSearch.search(result, false, false, 260L, 24);
-            ShotSearch.Result best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;
+            // The shots are worked out once when the board has stopped and then kept, so the lines stay put.
+            ShotSearch.Result cur;
+            ShotSearch.Result best;
+            if (cacheCur != null) {
+                cur = cacheCur;
+                best = cacheBest;
+            } else if (looseFrameCount >= 1) {
+                cur = ShotSearch.search(result, false, false, 260L, 24);
+                best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;
+                cacheCur = cur;
+                cacheBest = best;
+                cacheSx = striker.x;
+                cacheSy = striker.y;
+            } else {
+                cur = new ShotSearch.Result();
+                best = null;
+            }
 
             guideIntent.putExtra("isStriker", true);
             guideIntent.putExtra("pieceX", striker.x / frameW);

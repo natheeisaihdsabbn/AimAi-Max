@@ -70,6 +70,14 @@ public final class ShotSearch {
         strikerDisc.owner = CarromSim.STRIKER;
         base.add(strikerDisc);
         int si = base.size() - 1;
+        // with two or fewer of my coins left the red coin goes first
+        int mineLeft = 0;
+        boolean queenOn = false;
+        for (CarromSim.Disc bd : base) {
+            if (bd.owner == CarromSim.MINE) mineLeft++;
+            else if (bd.owner == CarromSim.QUEEN) queenOn = true;
+        }
+        float queenW = (queenOn && mineLeft <= 2) ? 300f : 60f;
 
         float[] px = new float[4], py = new float[4];
         float pr = 0f;
@@ -95,7 +103,8 @@ public final class ShotSearch {
             for (int level = 0; level < SPEEDS.length; level++) {
                 CarromSim.Result r = CarromSim.run(base, si, dx, dy, SPEEDS[level], L, T, R, B, px, py, pr, false);
                 result.tried++;
-                float score = 100f * r.minePotted + 60f * r.queenPotted - 120f * r.otherPotted
+                float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
+                        - (r.strikerMinPocket < pr * 1.7f ? 400f : 0f)
                         - (r.strikerPotted ? 500f : 0f)
                         - 0.02f * cand.score - 2f * level;
                 if (bestForShot == null || score > bestForShot.simScore) {

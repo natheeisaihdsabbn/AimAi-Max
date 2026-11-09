@@ -27,6 +27,7 @@ public final class CarromSim {
     public static final class Result {
         public int minePotted, otherPotted, queenPotted;
         public boolean strikerPotted;
+        public float strikerMinPocket = 1e9f;
         public List<Disc> discs;
         public int steps;
     }
@@ -62,6 +63,7 @@ public final class CarromSim {
         float dt = 1f / SUB;
         float decelSub = DECEL / SUB;
         float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);
+        float strikerMinD2 = 1e18f;
         int steps = 0;
         for (int step = 0; step < MAX_STEPS; step++) {
             boolean moving = false;
@@ -90,6 +92,7 @@ public final class CarromSim {
                     // pockets
                     for (int p = 0; p < pocketX.length; p++) {
                         float dx = a.x - pocketX[p], dy = a.y - pocketY[p];
+                        if (a.owner == STRIKER && dx * dx + dy * dy < strikerMinD2) strikerMinD2 = dx * dx + dy * dy;
                         if (dx * dx + dy * dy < potR2) {
                             a.potted = true;
                             a.vx = 0f;
@@ -157,6 +160,7 @@ public final class CarromSim {
 
         Result res = new Result();
         res.steps = steps;
+        res.strikerMinPocket = (float) Math.sqrt(strikerMinD2);
         res.discs = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             Disc a = d[i];
