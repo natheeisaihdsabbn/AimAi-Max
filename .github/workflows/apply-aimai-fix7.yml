@@ -1,0 +1,61 @@
+name: Apply AimAi Max no-foul and slide fix
+
+# Runs once when this file is uploaded. Two fixes in one run:
+#  1) ShotSearch.java: a shot that pots the striker (foul) is never chosen, even as a fallback.
+#  2) AssistantOverlayService.java: the striker now slides to a better spot on the baseline
+#     much more readily, instead of almost always staying in the same place.
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix7.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+          fetch-depth: 0
+
+      - name: Write ShotSearch.java and patch the slide condition
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname 'app/src/main/java/com/aimai/max/assistant/ShotSearch.java')"
+          printf '%s' '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' | base64 -d | gunzip > 'app/src/main/java/com/aimai/max/assistant/ShotSearch.java'
+          echo '1d1c6d71431dd8b5b8fa3c4dfeea52adf292225737e45f0b9837efd3912c7e9b  app/src/main/java/com/aimai/max/assistant/ShotSearch.java' | sha256sum -c -
+          printf '%s' 'H4sIAAAAAAACA61SUUvDMBB+768487Cl2LVbRZHphKEOBWXC9uBrll5dpEtCkq0b7MebtBsIDl/0XnJ3ue++j7sTK62MA4MJ2J2NNIyAMK0za3i2YkJmn2zDMq5WGRM+9rltxqwV1jHpsvHRm27QVGw3Q7MRHNMAIpH1zZRGSXUCKLkqhPwYkbUre9ckTg2ygsZRpKrC13W7XfhmC6UqZBJq33tWiQJ9iQ3vVEKnAwu0bqLWsghBkzdzI9DCLeQh9crcMmULS0PhO/RgG8Md9NN+XkZwwjyEnvG1aXvu9w3BjCuDHubzrXsOV/0yvvFSI4n1f4q++FX04PJvqgf5QbUoIUxbKgdCgh02XbUR0lHyNp7fP8Fk/Pzy+DBs5QFXshBOKNlAykBD4gbkbyXFrXB0EDdrtn6dumIcqSdIwI8nAf913D6pyakTqI1wSG0cHTSo9op+sGvm+BID9xdHCcZCrwIAAA==' | base64 -d | gunzip > /tmp/patch_slide.py
+          python3 /tmp/patch_slide.py
+
+      - name: Check protected files are untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- app/src/main/java/com/aimai/max/LicenseActivity.java app/src/main/java/com/aimai/max/LicenseManager.java app/src/main/AndroidManifest.xml
+
+      - name: Commit and start the APK build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aimai/max/assistant/ShotSearch.java app/src/main/java/com/aimai/max/assistant/AssistantOverlayService.java
+          if git diff --cached --quiet; then
+            echo "Files already up to date."
+          else
+            git commit -m "Never foul by potting the striker; slide the striker much more readily"
+            git push origin aimai-final-redesign
+          fi
+          gh workflow run build-apk.yml --ref aimai-final-redesign
