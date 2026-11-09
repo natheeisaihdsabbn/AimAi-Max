@@ -1,0 +1,78 @@
+name: Apply AimAi Max striker slide fix
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix17*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Grab the slider knob, drag it quickly, and shoot with the weaker power again
+        run: |
+          python3 - <<'PYEND'
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          def edit(name, pairs):
+              path = d + name
+              src = open(path, encoding="utf-8").read()
+              todo = []
+              for old, new in pairs:
+                  if old in src:
+                      assert src.count(old) == 1, name + ": anchor found more than once, nothing changed: " + old[:70]
+                      todo.append((old, new))
+                  elif new in src:
+                      print("already done in", name, ":", new[:60])
+                  else:
+                      raise SystemExit(name + ": anchor not found, nothing changed: " + old[:70])
+              for old, new in todo:
+                  src = src.replace(old, new)
+              open(path, "w", encoding="utf-8").write(src)
+              print("edited", name)
+
+          # the slider knob is about 0.36 board widths below the board; 0.395 landed just under it
+          edit("ScanPipeline.java", [
+              ("(result.board.bottom + 0.395f * base) / frameH",
+               "(result.board.bottom + 0.36f * base) / frameH"),
+          ])
+          # a quick drag instead of 0.7 seconds
+          edit("AimAiGestureService.java", [
+              ("new GestureDescription.StrokeDescription(path, 0, 700)).build();",
+               "new GestureDescription.StrokeDescription(path, 0, 240)).build();"),
+          ])
+          # a striker was potted (foul) after stronger shots were preferred: go back to the weaker one on ties
+          edit("ShotSearch.java", [
+              ("- 0.02f * cand.score + 3f * level;",
+               "- 0.02f * cand.score - 2f * level;"),
+          ])
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto slide grabs the knob (measured), quick drag, weaker power on ties"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
