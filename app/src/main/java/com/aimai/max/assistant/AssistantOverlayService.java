@@ -123,8 +123,8 @@ public class AssistantOverlayService extends Service {
 
             // Slide the striker only when another spot is clearly better, and only twice per shot.
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
-            boolean wantSlide = slideOn && bestFound && sliderTries < 2 && Math.abs(bestX - x) > 0.02f
-                    && (!curFound || bestScore > curScore + 60f);
+            boolean wantSlide = slideOn && bestFound && sliderTries < 3 && Math.abs(bestX - x) > 0.015f
+                    && (!curFound || bestScore > curScore + 12f);
 
             // Draw the shot that will be played: the simulated path of the striker and every coin it moves,
             // including wall bounces. "Visible search" also shows the other shots that were tried, thin.

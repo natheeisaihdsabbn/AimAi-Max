@@ -13,7 +13,9 @@ import java.util.List;
 /**
  * Finds the best shot in about a second: the planner proposes many shots (direct, coin bank, striker
  * bank, from every striker position), then each one is played in the physics simulator at three power
- * levels. The shot that pots the most of my coins (and nothing of the opponent) wins.
+ * levels. The shot that pots the most of my coins (and nothing of the opponent, and never the striker
+ * itself) wins. Every shot that is actually played has been run through the simulator first — nothing
+ * is sent to the phone on pure geometry alone, so a shot that would foul (pot the striker) is never chosen.
  */
 public final class ShotSearch {
 
@@ -27,6 +29,7 @@ public final class ShotSearch {
         public int level;
         public float simScore;
         public boolean potsSomething;
+        public boolean foulsStriker;
         /** Polylines in pixels: [kind, n, x0, y0, x1, y1 ...] repeated. kind 0 striker, 1 mine, 2 other. */
         public float[] paths;
     }
@@ -103,19 +106,43 @@ public final class ShotSearch {
             for (int level = 0; level < SPEEDS.length; level++) {
                 CarromSim.Result r = CarromSim.run(base, si, dx, dy, SPEEDS[level], L, T, R, B, px, py, pr, false);
                 result.tried++;
+                boolean nearStrikerPocket = r.strikerMinPocket < pr * 1.7f;
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
-                        - (r.strikerMinPocket < pr * 1.7f ? 400f : 0f)
-                        - (r.strikerPotted ? 500f : 0f)
+                        - (nearStrikerPocket ? 400f : 0f)
+                        - (r.strikerPotted ? 2000f : 0f)
                         - 0.02f * cand.score - 2f * level;
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
                     bestForShot.level = level;
                     bestForShot.simScore = score;
+                    bestForShot.foulsStriker = r.strikerPotted;
                     bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted;
                 }
             }
-            if (bestForShot != null) outcomes.add(bestForShot);
+            // A shot whose best power level still pots the striker is never offered at all.
+            if (bestForShot != null && !bestForShot.foulsStriker) outcomes.add(bestForShot);
+        }
+        if (outcomes.isEmpty()) {
+            // Every simulated shot fouled. Try every candidate once more at the gentlest speed only,
+            // since a soft tap is the one most likely to avoid sending the striker into a pocket.
+            for (Shot cand : cands) {
+                strikerDisc.x = cand.strikerX;
+                strikerDisc.y = cand.strikerY;
+                float dx = cand.aimX - cand.strikerX, dy = cand.aimY - cand.strikerY;
+                float len = (float) Math.sqrt(dx * dx + dy * dy);
+                if (len < 1f) continue;
+                CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[0], L, T, R, B, px, py, pr, false);
+                result.tried++;
+                if (r.strikerPotted) continue;
+                Outcome o = new Outcome();
+                o.shot = cand;
+                o.level = 0;
+                o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted;
+                o.potsSomething = r.minePotted + r.queenPotted > 0;
+                outcomes.add(o);
+                break;
+            }
         }
         if (outcomes.isEmpty()) return result;
 
@@ -124,16 +151,6 @@ public final class ShotSearch {
         });
 
         Outcome best = outcomes.get(0);
-        if (!best.potsSomething) {
-            // Nothing is sure to drop. Fall back to the cleanest geometric shot at a matching power.
-            Shot g = cands.get(0);
-            Outcome fb = new Outcome();
-            fb.shot = g;
-            fb.level = g.power < 0.45f ? 0 : (g.power < 0.75f ? 1 : 2);
-            fb.simScore = best.simScore;
-            fb.potsSomething = false;
-            best = fb;
-        }
         result.best = best;
         best.paths = record(base, si, best, L, T, R, B, px, py, pr);
         int limit = Math.min(6, outcomes.size());
