@@ -1,0 +1,108 @@
+name: Apply AimAi Max auto play fix
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix16*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Make Auto Play start even when one coin flickers in the scan
+        run: |
+          python3 - <<'PYEND'
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          def edit(name, pairs):
+              path = d + name
+              src = open(path, encoding="utf-8").read()
+              for old, new in pairs:
+                  assert src.count(old) == 1, name + ": anchor found " + str(src.count(old)) + " times, nothing changed: " + old[:80]
+              for old, new in pairs:
+                  src = src.replace(old, new)
+              open(path, "w", encoding="utf-8").write(src)
+              print("edited", name)
+
+          if "boardSteady" in open(d + "ScanPipeline.java", encoding="utf-8").read():
+              print("already applied")
+              raise SystemExit(0)
+
+          dashes = "    // ------------------------------------------------------------------ whose coins are whose\n"
+          mostly = (
+              "    /** Like samePositions, but one coin that flickers in the scan (for example under our own drawing) is tolerated. */\n"
+              "    private boolean mostlySame(List<float[]> a, List<CarromBoardAnalyzer.Piece> b, float tol) {\n"
+              "        if (a.isEmpty() || b.isEmpty()) return false;\n"
+              "        if (Math.abs(a.size() - b.size()) > 1) return false;\n"
+              "        int matched = 0;\n"
+              "        for (CarromBoardAnalyzer.Piece p : b) {\n"
+              "            for (float[] q : a) {\n"
+              "                float dx = q[0] - p.x, dy = q[1] - p.y;\n"
+              "                if (dx * dx + dy * dy <= tol * tol) { matched++; break; }\n"
+              "            }\n"
+              "        }\n"
+              "        return matched >= Math.max(1, (int) Math.ceil(b.size() * 0.9f));\n"
+              "    }\n\n"
+          )
+
+          edit("ScanPipeline.java", [
+              ("    private int stableFrameCount = 0;\n",
+               "    private int stableFrameCount = 0;\n    private int looseFrameCount = 0;\n"),
+              ("    public void reset() {\n        stableFrameCount = 0;\n",
+               "    public void reset() {\n        stableFrameCount = 0;\n        looseFrameCount = 0;\n"),
+              (dashes, mostly + dashes),
+              ("        if (samePositions(previousPieces, result.pieces, tol)) {\n            stableFrameCount++;\n",
+               "        boolean strictSame = samePositions(previousPieces, result.pieces, tol);\n"
+               "        boolean looseSame = strictSame || mostlySame(previousPieces, result.pieces, tol * 1.5f);\n"
+               "        looseFrameCount = looseSame ? looseFrameCount + 1 : 0;\n"
+               "        if (strictSame) {\n            stableFrameCount++;\n"),
+              ('        guideIntent.putExtra("boardStable", stableFrameCount >= 2);\n',
+               '        guideIntent.putExtra("boardStable", stableFrameCount >= 2);\n'
+               '        guideIntent.putExtra("boardSteady", looseFrameCount >= 2);\n'),
+          ])
+
+          edit("AssistantOverlayService.java", [
+              ('            boolean boardStable = intent.getBooleanExtra("boardStable", false);\n',
+               '            boolean boardStable = intent.getBooleanExtra("boardStable", false);\n'
+               '            boolean boardSteady = intent.getBooleanExtra("boardSteady", boardStable);\n'),
+              ("                boolean settled = boardStable && now - lastAutoShotAt >= SETTLE_MIN_MS\n",
+               "                boolean settled = boardSteady && now - lastAutoShotAt >= SETTLE_MIN_MS\n"),
+              ("            if (autoPlay && !waitingForSettle && boardStable && (curFound || bestFound)\n",
+               "            if (autoPlay && !waitingForSettle && boardSteady && (curFound || bestFound)\n"),
+          ])
+
+          # the other shots shown by Visible Search go back to thin lines so they do not hide the coins from the scanner
+          edit("AimGuideView.java", [
+              ("drawPaths(canvas, searchAlts, sw, sh, ox, oy, stroke0, 105);",
+               "drawPaths(canvas, searchAlts, sw, sh, ox, oy, Math.max(1.5f, stroke0 * 0.45f), 105);"),
+          ])
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto Play starts when one coin flickers in the scan; Visible Search lines thin again"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
