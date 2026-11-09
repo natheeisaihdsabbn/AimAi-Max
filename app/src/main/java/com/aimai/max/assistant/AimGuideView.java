@@ -187,7 +187,7 @@ public class AimGuideView extends View {
 
         if (searchMain != null) {
             float stroke0 = Math.max(2f, thickness * 0.6f);
-            if (searchAlts != null) drawPaths(canvas, searchAlts, sw, sh, ox, oy, stroke0, 105);
+            if (searchAlts != null) drawPaths(canvas, searchAlts, sw, sh, ox, oy, Math.max(1.5f, stroke0 * 0.45f), 105);
             drawPaths(canvas, searchMain, sw, sh, ox, oy, stroke0, 255);
             if (searchGhostX >= 0f) {
                 paint.setStyle(Paint.Style.STROKE);

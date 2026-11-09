@@ -78,6 +78,7 @@ public class AssistantOverlayService extends Service {
             }
 
             boolean boardStable = intent.getBooleanExtra("boardStable", false);
+            boolean boardSteady = intent.getBooleanExtra("boardSteady", boardStable);
             if (statsView != null) {
                 statsView.setText("Striker: " + intent.getIntExtra("strikerCount", 0)
                         + "   Guti: " + intent.getIntExtra("gutiCount", 0)
@@ -88,7 +89,7 @@ public class AssistantOverlayService extends Service {
             // Track the shot cycle: shot -> pieces move -> pieces stop -> scan again -> next shot.
             if (waitingForSettle) {
                 if (!boardStable) sawMotionAfterShot = true;
-                boolean settled = boardStable && now - lastAutoShotAt >= SETTLE_MIN_MS
+                boolean settled = boardSteady && now - lastAutoShotAt >= SETTLE_MIN_MS
                         && (sawMotionAfterShot || now - lastAutoShotAt >= SETTLE_TIMEOUT_MS);
                 if (settled) {
                     waitingForSettle = false;
@@ -140,7 +141,7 @@ public class AssistantOverlayService extends Service {
                 aimGuideView.setGuideEnabled(false);
             }
 
-            if (autoPlay && !waitingForSettle && boardStable && (curFound || bestFound)
+            if (autoPlay && !waitingForSettle && boardSteady && (curFound || bestFound)
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
                 int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);

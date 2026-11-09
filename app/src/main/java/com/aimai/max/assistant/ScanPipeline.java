@@ -17,12 +17,14 @@ public class ScanPipeline {
     private static final long HOLD_LAST_MS = 1500L;
 
     private int stableFrameCount = 0;
+    private int looseFrameCount = 0;
     private List<float[]> previousPieces = new ArrayList<>();
     private CarromBoardAnalyzer.Analysis lastGood;
     private long lastGoodAt = 0L;
 
     public void reset() {
         stableFrameCount = 0;
+        looseFrameCount = 0;
         previousPieces = new ArrayList<>();
         lastGood = null;
     }
@@ -38,6 +40,20 @@ public class ScanPipeline {
             if (!found) return false;
         }
         return true;
+    }
+
+    /** Like samePositions, but one coin that flickers in the scan (for example under our own drawing) is tolerated. */
+    private boolean mostlySame(List<float[]> a, List<CarromBoardAnalyzer.Piece> b, float tol) {
+        if (a.isEmpty() || b.isEmpty()) return false;
+        if (Math.abs(a.size() - b.size()) > 1) return false;
+        int matched = 0;
+        for (CarromBoardAnalyzer.Piece p : b) {
+            for (float[] q : a) {
+                float dx = q[0] - p.x, dy = q[1] - p.y;
+                if (dx * dx + dy * dy <= tol * tol) { matched++; break; }
+            }
+        }
+        return matched >= Math.max(1, (int) Math.ceil(b.size() * 0.9f));
     }
 
     // ------------------------------------------------------------------ whose coins are whose
@@ -171,7 +187,10 @@ public class ScanPipeline {
         }
 
         float tol = Math.max(6f, 0.012f * Math.max(1f, result.board.width()));
-        if (samePositions(previousPieces, result.pieces, tol)) {
+        boolean strictSame = samePositions(previousPieces, result.pieces, tol);
+        boolean looseSame = strictSame || mostlySame(previousPieces, result.pieces, tol * 1.5f);
+        looseFrameCount = looseSame ? looseFrameCount + 1 : 0;
+        if (strictSame) {
             stableFrameCount++;
         } else {
             stableFrameCount = 0;
@@ -183,6 +202,7 @@ public class ScanPipeline {
         Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");
         guideIntent.setPackage(ctx.getPackageName());
         guideIntent.putExtra("boardStable", stableFrameCount >= 2);
+        guideIntent.putExtra("boardSteady", looseFrameCount >= 2);
         guideIntent.putExtra("strikerCount", strikerCount);
         guideIntent.putExtra("gutiCount", coinCount);
 
