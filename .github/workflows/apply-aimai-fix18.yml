@@ -1,0 +1,134 @@
+name: Apply AimAi Max steady plan and safe striker
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix18*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Steady lines, no striker in the pocket, red coin first at the end
+        run: |
+          python3 - <<'PYEND'
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          plans = {}
+
+          plans["CarromSim.java"] = [
+              ("        public boolean strikerPotted;\n",
+               "        public boolean strikerPotted;\n        public float strikerMinPocket = 1e9f;\n"),
+              ("        float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);\n",
+               "        float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);\n        float strikerMinD2 = 1e18f;\n"),
+              ("                        float dx = a.x - pocketX[p], dy = a.y - pocketY[p];\n"
+               "                        if (dx * dx + dy * dy < potR2) {\n",
+               "                        float dx = a.x - pocketX[p], dy = a.y - pocketY[p];\n"
+               "                        if (a.owner == STRIKER && dx * dx + dy * dy < strikerMinD2) strikerMinD2 = dx * dx + dy * dy;\n"
+               "                        if (dx * dx + dy * dy < potR2) {\n"),
+              ("        res.steps = steps;\n",
+               "        res.steps = steps;\n        res.strikerMinPocket = (float) Math.sqrt(strikerMinD2);\n"),
+          ]
+
+          plans["ShotSearch.java"] = [
+              ("        int si = base.size() - 1;\n",
+               "        int si = base.size() - 1;\n"
+               "        // with two or fewer of my coins left the red coin goes first\n"
+               "        int mineLeft = 0;\n"
+               "        boolean queenOn = false;\n"
+               "        for (CarromSim.Disc bd : base) {\n"
+               "            if (bd.owner == CarromSim.MINE) mineLeft++;\n"
+               "            else if (bd.owner == CarromSim.QUEEN) queenOn = true;\n"
+               "        }\n"
+               "        float queenW = (queenOn && mineLeft <= 2) ? 300f : 60f;\n"),
+              ("                float score = 100f * r.minePotted + 60f * r.queenPotted - 120f * r.otherPotted\n",
+               "                float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted\n"
+               "                        - (r.strikerMinPocket < pr * 1.7f ? 400f : 0f)\n"),
+          ]
+
+          plans["ScanPipeline.java"] = [
+              ("    private int looseFrameCount = 0;\n",
+               "    private int looseFrameCount = 0;\n"
+               "    private ShotSearch.Result cacheCur;\n"
+               "    private ShotSearch.Result cacheBest;\n"
+               "    private float cacheSx, cacheSy;\n"),
+              ("        previousPieces = new ArrayList<>();\n        lastGood = null;\n    }\n",
+               "        previousPieces = new ArrayList<>();\n        lastGood = null;\n"
+               "        cacheCur = null;\n        cacheBest = null;\n    }\n"),
+              ("        looseFrameCount = looseSame ? looseFrameCount + 1 : 0;\n",
+               "        looseFrameCount = looseSame ? looseFrameCount + 1 : 0;\n"
+               "        CarromBoardAnalyzer.Piece sNow = result.striker;\n"
+               "        boolean strikerShifted = sNow != null && cacheCur != null\n"
+               "                && (Math.abs(sNow.x - cacheSx) > tol || Math.abs(sNow.y - cacheSy) > tol);\n"
+               "        if (!looseSame || strikerShifted) {\n"
+               "            cacheCur = null;\n"
+               "            cacheBest = null;\n"
+               "        }\n"),
+              ("            ShotSearch.Result cur = ShotSearch.search(result, false, false, 260L, 24);\n"
+               "            ShotSearch.Result best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;\n",
+               "            // The shots are worked out once when the board has stopped and then kept, so the lines stay put.\n"
+               "            ShotSearch.Result cur;\n"
+               "            ShotSearch.Result best;\n"
+               "            if (cacheCur != null) {\n"
+               "                cur = cacheCur;\n"
+               "                best = cacheBest;\n"
+               "            } else if (looseFrameCount >= 1) {\n"
+               "                cur = ShotSearch.search(result, false, false, 260L, 24);\n"
+               "                best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;\n"
+               "                cacheCur = cur;\n"
+               "                cacheBest = best;\n"
+               "                cacheSx = striker.x;\n"
+               "                cacheSy = striker.y;\n"
+               "            } else {\n"
+               "                cur = new ShotSearch.Result();\n"
+               "                best = null;\n"
+               "            }\n"),
+          ]
+
+          # check every anchor first, change nothing if one is missing
+          already = "strikerMinPocket" in open(d + "CarromSim.java", encoding="utf-8").read()
+          if already:
+              print("already applied")
+              raise SystemExit(0)
+          texts = {}
+          for name, pairs in plans.items():
+              src = open(d + name, encoding="utf-8").read()
+              for old, new in pairs:
+                  assert src.count(old) == 1, name + ": anchor found " + str(src.count(old)) + " times, nothing changed: " + old[:80]
+              texts[name] = src
+          for name, pairs in plans.items():
+              src = texts[name]
+              for old, new in pairs:
+                  src = src.replace(old, new)
+              open(d + name, "w", encoding="utf-8").write(src)
+              print("edited", name)
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Steady plan lines, striker kept out of pockets, red coin first when two coins are left"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
