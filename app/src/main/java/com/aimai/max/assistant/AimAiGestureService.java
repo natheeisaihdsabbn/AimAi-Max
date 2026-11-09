@@ -260,7 +260,7 @@ public class AimAiGestureService extends AccessibilityService {
         path.moveTo(fx, fy);
         path.lineTo(tx, fy);
         GestureDescription g = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(path, 0, 700)).build();
+                .addStroke(new GestureDescription.StrokeDescription(path, 0, 240)).build();
         boolean ok = s.dispatchGesture(g, null, null);
         Log.i(TAG, "dragSlider accepted=" + ok + " from=" + fx + " to=" + tx + " y=" + fy);
         return ok;

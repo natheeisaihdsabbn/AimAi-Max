@@ -97,7 +97,7 @@ public final class ShotSearch {
                 result.tried++;
                 float score = 100f * r.minePotted + 60f * r.queenPotted - 120f * r.otherPotted
                         - (r.strikerPotted ? 500f : 0f)
-                        - 0.02f * cand.score + 3f * level;
+                        - 0.02f * cand.score - 2f * level;
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;

@@ -221,7 +221,7 @@ public class ScanPipeline {
             guideIntent.putExtra("strikerRadiusX", striker.radius / frameW);
             guideIntent.putExtra("strikerRadiusY", striker.radius / frameH);
             float base = Math.min(result.board.width(), result.board.height());
-            guideIntent.putExtra("sliderY", (result.board.bottom + 0.395f * base) / frameH);
+            guideIntent.putExtra("sliderY", (result.board.bottom + 0.36f * base) / frameH);
             float pocketR = 0f;
             for (CarromBoardAnalyzer.Pocket pk : result.pockets) pocketR += pk.radius / 4f;
             guideIntent.putExtra("pocketRadius", pocketR / frameW);
