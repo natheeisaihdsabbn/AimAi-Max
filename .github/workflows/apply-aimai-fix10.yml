@@ -1,4 +1,9 @@
-name: Apply AimAi Max automation menu
+name: Apply AimAi Max launch-password and small button
+
+# Runs once when this file is uploaded. Two changes in one run:
+#  1) The floating button becomes a small rounded square (same as fix9).
+#  2) The licence key is now asked for when Launch is tapped, not when the app opens.
+#     LicenseActivity.java and LicenseManager.java are NOT changed.
 
 on:
   push:
@@ -16,124 +21,45 @@ jobs:
   apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
         with:
           ref: aimai-final-redesign
+          fetch-depth: 0
 
-      - name: Add the Automation menu buttons
+      - name: Patch the floating button
+        shell: bash
         run: |
-          python3 - <<'PYEND'
-          import base64
-          path = "app/src/main/java/com/aimai/max/assistant/AssistantOverlayService.java"
-          src = open(path, encoding="utf-8").read()
-          if "auto_queue" in src:
-              print("Menu already added, nothing to do.")
-              raise SystemExit(0)
-          block = base64.b64decode("".join("""
-          ICAgICAgICAvLyAtLS0tIFFVRVVFOiBzYW1lIGxheW91dCBhcyB0aGUgcmVmZXJlbmNlIChBdXRvIFF1ZXVlLCBzdGF0dXMsIGdh
-          bWUsIG1heCBzdGFrZSkKICAgICAgICBjb2wuYWRkVmlldyhzZWN0aW9uVGl0bGUoIlFVRVVFIikpOwogICAgICAgIFN3aXRjaCBx
-          dWV1ZVN3aXRjaCA9IGFjY2VudFN3aXRjaChzZXR0aW5ncygpLmdldEJvb2xlYW4oImF1dG9fcXVldWUiLCBmYWxzZSkpOwogICAg
-          ICAgIHF1ZXVlU3dpdGNoLnNldE9uQ2hlY2tlZENoYW5nZUxpc3RlbmVyKChiLCBjaGVja2VkKSAtPgogICAgICAgICAgICAgICAg
-          c2V0dGluZ3MoKS5lZGl0KCkucHV0Qm9vbGVhbigiYXV0b19xdWV1ZSIsIGNoZWNrZWQpLmFwcGx5KCkpOwogICAgICAgIGNvbC5h
-          ZGRWaWV3KHN3aXRjaFJvdygiQXV0byBRdWV1ZSIsIHF1ZXVlU3dpdGNoKSk7CgogICAgICAgIGZpbmFsIFN0cmluZ1tdIHN0YWtl
-          TGFiZWxzID0geyIyMDAiLCAiNTAwIiwgIjIuNmsiLCAiNGsgMnYyIiwgIjUuNWsiLCAiMTFrIiwKICAgICAgICAgICAgICAgICIy
-          N2sgMnYyIiwgIjU1ayIsICIxNDBrIiwgIjE3MGsgMnYyIiwgIjI4MGsiLCAiNTgwayJ9OwogICAgICAgIGZpbmFsIFRleHRWaWV3
-          IHF1ZXVlU3Rha2VWYWx1ZSA9IGxhYmVsKHNldHRpbmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKSwgMTEsCiAg
-          ICAgICAgICAgICAgICBDb2xvci5yZ2IoMTM1LCAxNDAsIDE1NSksIGZhbHNlKTsKICAgICAgICBMaW5lYXJMYXlvdXQgcXVldWVS
-          b3cgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIHF1ZXVlUm93LnNldEdyYXZpdHkoR3Jhdml0eS5DRU5URVJfVkVS
-          VElDQUwpOwogICAgICAgIHF1ZXVlUm93LnNldFBhZGRpbmcoZHAoMiksIGRwKDYpLCAwLCBkcCgyKSk7CiAgICAgICAgcXVldWVS
-          b3cuYWRkVmlldyhsYWJlbCgiXHUyMDIyICBRdWV1ZSIsIDExLCBDb2xvci5yZ2IoMTM1LCAxNDAsIDE1NSksIGZhbHNlKSwKICAg
-          ICAgICAgICAgICAgIG5ldyBMaW5lYXJMYXlvdXQuTGF5b3V0UGFyYW1zKDAsIC0yLCAxZikpOwogICAgICAgIHF1ZXVlUm93LmFk
-          ZFZpZXcocXVldWVTdGFrZVZhbHVlKTsKICAgICAgICBjb2wuYWRkVmlldyhxdWV1ZVJvdyk7CgogICAgICAgIGNvbC5hZGRWaWV3
-          KHNlY3Rpb25UaXRsZSgiR0FNRSIpKTsKICAgICAgICBMaW5lYXJMYXlvdXQgZ2FtZVJvdyA9IG5ldyBMaW5lYXJMYXlvdXQodGhp
-          cyk7CiAgICAgICAgZmluYWwgU3RyaW5nW10gZ2FtZUtleXMgPSB7IkRJU0MiLCAiQ0FSUk9NIiwgIkZSRUVTVFlMRSJ9OwogICAg
-          ICAgIGZpbmFsIFN0cmluZ1tdIGdhbWVOYW1lcyA9IHsiRGlzYyBQb29sIiwgIkNhcnJvbSIsICJGcmVlc3R5bGUifTsKICAgICAg
-          ICBmaW5hbCBUZXh0Vmlld1tdIGdhbWVCdXR0b25zID0gbmV3IFRleHRWaWV3WzNdOwogICAgICAgIFN0cmluZyBzYXZlZEdhbWUg
-          PSBzZXR0aW5ncygpLmdldFN0cmluZygicXVldWVfZ2FtZSIsICJESVNDIik7CiAgICAgICAgZm9yIChpbnQgaSA9IDA7IGkgPCAz
-          OyBpKyspIHsKICAgICAgICAgICAgZmluYWwgaW50IGluZGV4ID0gaTsKICAgICAgICAgICAgVGV4dFZpZXcgZ2IgPSBsYWJlbChn
-          YW1lTmFtZXNbaV0sIDEyLCBDb2xvci5XSElURSwgZmFsc2UpOwogICAgICAgICAgICBnYi5zZXRHcmF2aXR5KEdyYXZpdHkuQ0VO
-          VEVSKTsKICAgICAgICAgICAgZ2Iuc2V0QmFja2dyb3VuZChzaGFwZShnYW1lS2V5c1tpXS5lcXVhbHMoc2F2ZWRHYW1lKSA/IENv
-          bG9yLnJnYig3MCwgNzQsIDEyMCkgOiBDb2xvci5yZ2IoMjQsIDI4LCAzOCksIDEyKSk7CiAgICAgICAgICAgIGdiLnNldE9uQ2xp
-          Y2tMaXN0ZW5lcih2IC0+IHsKICAgICAgICAgICAgICAgIHNldHRpbmdzKCkuZWRpdCgpLnB1dFN0cmluZygicXVldWVfZ2FtZSIs
-          IGdhbWVLZXlzW2luZGV4XSkuYXBwbHkoKTsKICAgICAgICAgICAgICAgIGZvciAoaW50IGsgPSAwOyBrIDwgMzsgaysrKSB7CiAg
-          ICAgICAgICAgICAgICAgICAgZ2FtZUJ1dHRvbnNba10uc2V0QmFja2dyb3VuZChzaGFwZShrID09IGluZGV4ID8gQ29sb3Iucmdi
-          KDcwLCA3NCwgMTIwKSA6IENvbG9yLnJnYigyNCwgMjgsIDM4KSwgMTIpKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAg
-          fSk7CiAgICAgICAgICAgIGdhbWVCdXR0b25zW2ldID0gZ2I7CiAgICAgICAgICAgIExpbmVhckxheW91dC5MYXlvdXRQYXJhbXMg
-          Z3AgPSBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBhcmFtcygwLCBkcCg0MCksIDFmKTsKICAgICAgICAgICAgZ3Auc2V0TWFyZ2lu
-          cyhkcCgyKSwgZHAoMyksIGRwKDIpLCBkcCgzKSk7CiAgICAgICAgICAgIGdhbWVSb3cuYWRkVmlldyhnYiwgZ3ApOwogICAgICAg
-          IH0KICAgICAgICBjb2wuYWRkVmlldyhnYW1lUm93KTsKCiAgICAgICAgLy8gTWF4IFN0YWtlOiBhIGhlYWRlciByb3cgdGhhdCBv
-          cGVucyBhIGdyaWQgb2Ygc3Rha2VzCiAgICAgICAgZmluYWwgVGV4dFZpZXcgc3Rha2VIZWFkZXJWYWx1ZSA9IGxhYmVsKHNldHRp
-          bmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKSwgMTIsCiAgICAgICAgICAgICAgICBDb2xvci5yZ2IoMTcwLCAx
-          NjYsIDIzNSksIGZhbHNlKTsKICAgICAgICBmaW5hbCBUZXh0VmlldyBzdGFrZUNoZXZyb24gPSBsYWJlbCgiXHUyNUJDIiwgMTAs
-          IENvbG9yLnJnYigxMzUsIDE0MCwgMTU1KSwgZmFsc2UpOwogICAgICAgIHN0YWtlQ2hldnJvbi5zZXRQYWRkaW5nKGRwKDgpLCAw
-          LCAwLCAwKTsKICAgICAgICBMaW5lYXJMYXlvdXQgc3Rha2VIZWFkZXIgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAg
-          IHN0YWtlSGVhZGVyLnNldEdyYXZpdHkoR3Jhdml0eS5DRU5URVJfVkVSVElDQUwpOwogICAgICAgIHN0YWtlSGVhZGVyLnNldFBh
-          ZGRpbmcoZHAoMiksIGRwKDE0KSwgMCwgZHAoNikpOwogICAgICAgIHN0YWtlSGVhZGVyLmFkZFZpZXcobGFiZWwoIk1heCBTdGFr
-          ZSIsIDE0LCBDb2xvci5XSElURSwgZmFsc2UpLCBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBhcmFtcygwLCAtMiwgMWYpKTsKICAg
-          ICAgICBzdGFrZUhlYWRlci5hZGRWaWV3KHN0YWtlSGVhZGVyVmFsdWUpOwogICAgICAgIHN0YWtlSGVhZGVyLmFkZFZpZXcoc3Rh
-          a2VDaGV2cm9uKTsKICAgICAgICBjb2wuYWRkVmlldyhzdGFrZUhlYWRlcik7CgogICAgICAgIGZpbmFsIExpbmVhckxheW91dCBz
-          dGFrZUdyaWQgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIHN0YWtlR3JpZC5zZXRPcmllbnRhdGlvbihMaW5lYXJM
-          YXlvdXQuVkVSVElDQUwpOwogICAgICAgIHN0YWtlR3JpZC5zZXRWaXNpYmlsaXR5KFZpZXcuR09ORSk7CiAgICAgICAgZmluYWwg
-          VGV4dFZpZXdbXSBzdGFrZUJ1dHRvbnMgPSBuZXcgVGV4dFZpZXdbc3Rha2VMYWJlbHMubGVuZ3RoXTsKICAgICAgICBTdHJpbmcg
-          c2F2ZWRTdGFrZSA9IHNldHRpbmdzKCkuZ2V0U3RyaW5nKCJxdWV1ZV9zdGFrZSIsICI1MDAiKTsKICAgICAgICBmb3IgKGludCBy
-          b3cgPSAwOyByb3cgPCA0OyByb3crKykgewogICAgICAgICAgICBMaW5lYXJMYXlvdXQgbGluZSA9IG5ldyBMaW5lYXJMYXlvdXQo
-          dGhpcyk7CiAgICAgICAgICAgIGZvciAoaW50IGNlbGwgPSAwOyBjZWxsIDwgMzsgY2VsbCsrKSB7CiAgICAgICAgICAgICAgICBm
-          aW5hbCBpbnQgaW5kZXggPSByb3cgKiAzICsgY2VsbDsKICAgICAgICAgICAgICAgIFRleHRWaWV3IHNiID0gbGFiZWwoc3Rha2VM
-          YWJlbHNbaW5kZXhdLCAxMiwgQ29sb3IucmdiKDE5MCwgMTk0LCAyMDgpLCBmYWxzZSk7CiAgICAgICAgICAgICAgICBzYi5zZXRH
-          cmF2aXR5KEdyYXZpdHkuQ0VOVEVSKTsKICAgICAgICAgICAgICAgIHNiLnNldEJhY2tncm91bmQoc2hhcGUoc3Rha2VMYWJlbHNb
-          aW5kZXhdLmVxdWFscyhzYXZlZFN0YWtlKQogICAgICAgICAgICAgICAgICAgICAgICA/IENvbG9yLnJnYigzNiwgNDAsIDU2KSA6
-          IENvbG9yLlRSQU5TUEFSRU5ULCAxMikpOwogICAgICAgICAgICAgICAgc2Iuc2V0T25DbGlja0xpc3RlbmVyKHYgLT4gewogICAg
-          ICAgICAgICAgICAgICAgIHNldHRpbmdzKCkuZWRpdCgpLnB1dFN0cmluZygicXVldWVfc3Rha2UiLCBzdGFrZUxhYmVsc1tpbmRl
-          eF0pLmFwcGx5KCk7CiAgICAgICAgICAgICAgICAgICAgcXVldWVTdGFrZVZhbHVlLnNldFRleHQoc3Rha2VMYWJlbHNbaW5kZXhd
-          KTsKICAgICAgICAgICAgICAgICAgICBzdGFrZUhlYWRlclZhbHVlLnNldFRleHQoc3Rha2VMYWJlbHNbaW5kZXhdKTsKICAgICAg
-          ICAgICAgICAgICAgICBmb3IgKGludCBrID0gMDsgayA8IHN0YWtlQnV0dG9ucy5sZW5ndGg7IGsrKykgewogICAgICAgICAgICAg
-          ICAgICAgICAgICBzdGFrZUJ1dHRvbnNba10uc2V0QmFja2dyb3VuZChzaGFwZShrID09IGluZGV4ID8gQ29sb3IucmdiKDM2LCA0
-          MCwgNTYpIDogQ29sb3IuVFJBTlNQQVJFTlQsIDEyKSk7CiAgICAgICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgfSk7
-          CiAgICAgICAgICAgICAgICBzdGFrZUJ1dHRvbnNbaW5kZXhdID0gc2I7CiAgICAgICAgICAgICAgICBMaW5lYXJMYXlvdXQuTGF5
-          b3V0UGFyYW1zIHNwID0gbmV3IExpbmVhckxheW91dC5MYXlvdXRQYXJhbXMoMCwgZHAoNDYpLCAxZik7CiAgICAgICAgICAgICAg
-          ICBzcC5zZXRNYXJnaW5zKGRwKDMpLCBkcCgzKSwgZHAoMyksIGRwKDMpKTsKICAgICAgICAgICAgICAgIGxpbmUuYWRkVmlldyhz
-          Yiwgc3ApOwogICAgICAgICAgICB9CiAgICAgICAgICAgIHN0YWtlR3JpZC5hZGRWaWV3KGxpbmUpOwogICAgICAgIH0KICAgICAg
-          ICBjb2wuYWRkVmlldyhzdGFrZUdyaWQpOwogICAgICAgIHN0YWtlSGVhZGVyLnNldE9uQ2xpY2tMaXN0ZW5lcih2IC0+IHsKICAg
-          ICAgICAgICAgYm9vbGVhbiBvcGVuID0gc3Rha2VHcmlkLmdldFZpc2liaWxpdHkoKSA9PSBWaWV3LlZJU0lCTEU7CiAgICAgICAg
-          ICAgIHN0YWtlR3JpZC5zZXRWaXNpYmlsaXR5KG9wZW4gPyBWaWV3LkdPTkUgOiBWaWV3LlZJU0lCTEUpOwogICAgICAgICAgICBz
-          dGFrZUNoZXZyb24uc2V0VGV4dChvcGVuID8gIlx1MjVCQyIgOiAiXHUyNUIyIik7CiAgICAgICAgfSk7Cg==
-          """.split())).decode("utf-8")
-          pairs = [
-              ("    private TextView statsView;\n",
-               "    private TextView statsView;\n    private Switch visibleSearchSwitch;\n"),
-              ('label("Auto Play", 20, Color.WHITE, true)',
-               'label("Automation", 20, Color.WHITE, true)'),
-              ("            autoPlay = checked;\n",
-               "            autoPlay = checked;\n            if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);\n"),
-              ('col.addView(switchRow("AUTO PLAY", autoSwitch));',
-               'col.addView(switchRow("Auto Play", autoSwitch));'),
-              ('        col.addView(switchRow("VISIBLE SEARCH", searchSwitch));',
-               '        visibleSearchSwitch = searchSwitch;\n        searchSwitch.setEnabled(autoPlay);\n        col.addView(switchRow("Visible Search", searchSwitch));'),
-              ("        col.addView(styleHint);\n",
-               "        col.addView(styleHint);\n\n" + block),
-          ]
-          for old, new in pairs:
-              assert src.count(old) == 1, "anchor not found exactly once, nothing changed: " + old[:60]
-          for old, new in pairs:
-              src = src.replace(old, new)
-          open(path, "w", encoding="utf-8").write(src)
-          print("Menu added.")
-          PYEND
+          set -euo pipefail
+          printf '%s' 'H4sIAAAAAAACA9VTTW/bMAy9+1cQ2iEy6trwtgJBhxzSNFsLZGvRBeiZlplMqyxpkpyP/vrJrl1sQLDdBowHUyQevx78ZGONC+AoA3/0iYUZMLS28E4UDUpdfMcdFsI0BcoYx9yhQO+lD6hDMR9fdztyCo9fye2koLwrYomPzYwlzW0GpIWppd7OWBs251OW5o6w5mmS1LSBpvWBC6PrDBq/TS8TiCY3oE2ALv2S6Mw6qQNn9/P14gY+zm9Xy+tLYHDW172i4ik5HWTgZRzwBsoUfINKkYtX/mjREXBnWl1TfS6M0+RSqNqqUgRS+xAXA7MBhEpuQUgnFCVG1fGayWQyjhjwM1BYkeJszjJ4W6Yfkt8BuafwyeFOhiMffL5YflkvH05C10dLGxTEdatUBmOYX92trk8X0CEsjDKO99/88eZ2vTyJvELxtO2v5v4bWuIoBOkQt56mvxQ8Sl2b/WfUuCWXr/Bo2nCPDhs/9BqCGWja/wHNXzuOVlt+8T7NRh+5TLoWf2W1vPgfWS3Lf8bqu+kLq53vWO3V1P2wUoPPgA2k9vtBpYx4YmkvTh9FaFVHTERn3ei4d1TMKFq2Z6eUu3cyEPdpMohx6O/Iy2eqIZgonV5vMIhsEF2c+hOMN6XWbwQAAA==' | base64 -d | gunzip > /tmp/patch_bubble.py
+          python3 /tmp/patch_bubble.py
 
-      - name: Commit and push
+      - name: Move the licence check to the Launch button
+        shell: bash
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add -A app
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          git commit -m "Automation menu: Auto Queue, Game, Max Stake, Visible Search greyed until Auto Play"
-          git push
+          set -euo pipefail
+          printf '%s' 'H4sIAAAAAAACA9VV30/bMBB+z19xZBIkWknEeJmKmNS1bKtWfmhFvCLPuTYeiR3ZTkM18b/v7IRA20mDPUxa3nJnn7/7vvtsUVZKWzBrE1RwCiGrqtRonpZMyPQHW7GUqzJlgv4pdp+eU3zErVgJu05cPgwM7VMVyqgaAEquMiGXp2FtF4fvwzjRyLIoDoIMF1DWxkZcyWwApVnGwwDoEwuQyoILtwH3VVpIG4VXo+vxF/g0ms7OJkMI4a3f168i1AneCxsd0QFv4Cj2OEbGCGMZ7Y+HwMwdLJQGmyMUghM+hDtcg5LFGpocJcxYLXkOwoCl5jFLAlVk1NLBwUGHZMUswkqJbLs8/OyhUBfRx1oUWXJz9m0+vbxI5pOvt9OLa/hwChuJ2/Hl5GyenMP+PuzN0VqiyyScyYlmzeUKdcHWJrK5MDEdQCgCic2r8aQpXG+1TB0SG5h5PnLUOCAWuvYHXgPPh2OKiPC1TbLR4N7MlTN4ziRbok5yZm5YIbKZ4qzocj3yfqdXyjJtH+cmcg1NpUXC7FYPoNvbDxYvmKEiJxs1FkIKk0dbUY221vIp9vBPJPGT7OZESCD84YYQbbdh7J1hyAFVwTi65UQzNgNox/Udjasckz8suknNtKo8+X53XcGSEiftoPqQT1aoBTmMU9+HPEd+RwtIX1Y4n61bvc3OEHsJatqb9CdSSYvPuPz/9N0C6yFcdfSMHTUt1JOXDcTxMam/47YXEEdOu1C90ZxowGwvIpNrKJXG4aavKK+ZWOYkqvKZz6xEinKNKJNtFxtK9ie0qkvVgK6p0EKr0lfo7rHvtbVka5rLrcth08p/rfSrWX94Jf871uqI99T+wVSPz1DYhL97ixotnIBx0D0vzx8zqJglarNhT7Sj+OnC3LoqVcsv4fkFZKgi/EIHAAA=' | base64 -d | gunzip > /tmp/patch_mainactivity.py
+          python3 /tmp/patch_mainactivity.py
 
-      - name: Start APK build
+      - name: Check protected files are untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --exit-code -- app/src/main/java/com/aimai/max/LicenseActivity.java app/src/main/java/com/aimai/max/LicenseManager.java app/src/main/AndroidManifest.xml
+
+      - name: Commit and start the APK build
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run build-apk.yml --ref aimai-final-redesign
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/java/com/aimai/max/assistant/AssistantOverlayService.java app/src/main/java/com/aimai/max/MainActivity.java
+          if git diff --cached --quiet; then
+            echo "Files already up to date."
+          else
+            git commit -m "Small rounded-square button; licence check moved to the Launch button"
+            git push origin aimai-final-redesign
+          fi
+          gh workflow run build-apk.yml --ref aimai-final-redesign
