@@ -1,0 +1,66 @@
+name: Apply AimAi Max striker pocket safety
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix19*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Test every shot also with a stronger hit, so the striker never rolls into a pocket
+        run: |
+          python3 - <<'PYEND'
+          path = "app/src/main/java/com/aimai/max/assistant/ShotSearch.java"
+          src = open(path, encoding="utf-8").read()
+          if "fastRisk" in src:
+              print("already applied")
+              raise SystemExit(0)
+          pairs = [
+              ("                boolean nearStrikerPocket = r.strikerMinPocket < pr * 1.7f;\n",
+               "                boolean nearStrikerPocket = r.strikerMinPocket < pr * 1.7f;\n"
+               "                // the real striker rolls further than the simulated one, so the same shot is also tried 35 percent harder\n"
+               "                CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);\n"
+               "                boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 1.7f;\n"),
+              ("                        - (nearStrikerPocket ? 400f : 0f)\n",
+               "                        - ((nearStrikerPocket || fastRisk) ? 400f : 0f)\n"),
+              ("                    bestForShot.foulsStriker = r.strikerPotted;\n",
+               "                    bestForShot.foulsStriker = r.strikerPotted || rr.strikerPotted;\n"),
+          ]
+          for old, new in pairs:
+              assert src.count(old) == 1, "anchor found " + str(src.count(old)) + " times, nothing changed: " + old[:80]
+          for old, new in pairs:
+              src = src.replace(old, new)
+          open(path, "w", encoding="utf-8").write(src)
+          print("edited ShotSearch.java")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Striker safety: shots are also tested 35 percent harder before they are chosen"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
