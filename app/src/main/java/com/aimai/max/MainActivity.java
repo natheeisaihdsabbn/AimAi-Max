@@ -16,6 +16,9 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.EditText;
+import android.os.PowerManager;
+import android.text.InputType;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -153,20 +156,164 @@ public class MainActivity extends Activity {
 
     // ------------------------------------------------------------------ lifecycle
 
+    // ------------------------------------------------------------------ permissions (all asked from inside the app)
+
+    private boolean askedNotif = false, askedBattery = false, askedOverlay = false, askedAccess = false;
+    private boolean grantChain = false;
+
+    private boolean notifGranted() {
+        return Build.VERSION.SDK_INT < 33
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private boolean batteryOk() {
+        if (Build.VERSION.SDK_INT < 23) return true;
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        return pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+    }
+
+    private boolean overlayOk() {
+        return Build.VERSION.SDK_INT < 23 || Settings.canDrawOverlays(this);
+    }
+
+    private boolean accessOk() {
+        return AimAiGestureService.isConnected();
+    }
+
+    private void askNotifications() {
+        askedNotif = true;
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
+        }
+    }
+
+    private void askBattery() {
+        askedBattery = true;
+        try {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())));
+        } catch (Exception e) {
+            startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        }
+    }
+
+    private void askOverlay() {
+        askedOverlay = true;
+        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:" + getPackageName())));
+    }
+
+    private void askAccessibility() {
+        askedAccess = true;
+        Toast.makeText(this, "Turn on AimAi Max, then come back.", Toast.LENGTH_LONG).show();
+        startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+    }
+
+    /** Asks for whatever is still missing, one permission at a time, each time the app comes back to the front. */
+    private void grantNext() {
+        if (!notifGranted() && !askedNotif) { askNotifications(); return; }
+        if (!batteryOk() && !askedBattery) { askBattery(); return; }
+        if (!overlayOk() && !askedOverlay) { askOverlay(); return; }
+        if (!accessOk() && !askedAccess) { askAccessibility(); return; }
+        grantChain = false;
+        if (host != null && current == 0) showPage(0);
+    }
+
+    private View buildPermissionCard() {
+        boolean n = notifGranted();
+        boolean b = batteryOk();
+        boolean o = overlayOk();
+        boolean a = accessOk();
+        if (n && b && o && a) return null;
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(12), dp(10), dp(12), dp(10));
+        box.setBackground(box(card, 10, line));
+        box.addView(label("Permissions", 13, Color.WHITE, true));
+        addPermRow(box, "Notifications", n, v -> { askedNotif = false; askNotifications(); });
+        addPermRow(box, "Run in background", b, v -> askBattery());
+        addPermRow(box, "Display over other apps", o, v -> askOverlay());
+        addPermRow(box, "Accessibility (Auto Play)", a, v -> askAccessibility());
+        TextView all = label("Allow all", 12, Color.rgb(240, 238, 252), true);
+        all.setGravity(Gravity.CENTER);
+        AimAiUiStyle.surface(all, true);
+        all.setOnClickListener(v -> {
+            askedNotif = false;
+            askedBattery = false;
+            askedOverlay = false;
+            askedAccess = false;
+            grantChain = true;
+            grantNext();
+        });
+        LinearLayout.LayoutParams ap = lp(-1, 34);
+        ap.topMargin = dp(8);
+        box.addView(all, ap);
+        return box;
+    }
+
+    private void addPermRow(LinearLayout parent, String name, boolean on, View.OnClickListener ask) {
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(label(name, 12, Color.rgb(200, 204, 218), false), new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView state = label(on ? "On" : "Allow", 11,
+                on ? Color.rgb(140, 210, 170) : Color.WHITE, false);
+        state.setGravity(Gravity.CENTER);
+        if (!on) {
+            AimAiUiStyle.surface(state, false);
+            state.setOnClickListener(ask);
+        }
+        row.addView(state, lp(on ? 40 : 60, 28));
+        parent.addView(row, lp(-1, 34));
+    }
+
+    // ------------------------------------------------------------------ password (asked when Launch is tapped)
+
+    private void launchWithPassword() {
+        if (LicenseManager.hasValidLocalLicense(this)) {
+            openAssistant();
+            return;
+        }
+        final EditText input = new EditText(this);
+        input.setHint("Password");
+        input.setSingleLine(true);
+        input.setInputType(InputType.TYPE_CLASS_TEXT
+                | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        final AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Enter password")
+                .setView(input)
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Continue", null)
+                .create();
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String key = input.getText().toString().trim();
+            if (key.isEmpty()) {
+                input.setError("Enter the password");
+                return;
+            }
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            LicenseManager.verify(this, key, result -> {
+                if (isFinishing()) return;
+                if (result == LicenseManager.Result.OK) {
+                    dialog.dismiss();
+                    LicenseManager.startPeriodicCheck(this);
+                    openAssistant();
+                    return;
+                }
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                if (result == LicenseManager.Result.INVALID) input.setError("Wrong password");
+                else if (result == LicenseManager.Result.OTHER_DEVICE) input.setError("Already used on another phone");
+                else input.setError("Cannot reach the server");
+            });
+        }));
+        dialog.show();
+    }
+
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        if (!LicenseManager.hasValidLocalLicense(this)) {
-            startActivity(new Intent(this, LicenseActivity.class));
-            finish();
-            return;
-        }
-        LicenseManager.startPeriodicCheck(this);
-        if (Build.VERSION.SDK_INT >= 33 &&
-                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                        != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);
-        }
+        if (LicenseManager.hasValidLocalLicense(this)) LicenseManager.startPeriodicCheck(this);
         getWindow().setStatusBarColor(bg);
         getWindow().setNavigationBarColor(bg);
         getWindow().getDecorView().setSystemUiVisibility(0);
@@ -220,7 +367,8 @@ public class MainActivity extends Activity {
         if (keepAwake) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // Refresh status rows (accessibility / overlay) after coming back from system settings.
-        if (host != null && current == 3) showPage(3);
+        if (host != null && (current == 3 || current == 0)) showPage(current);
+        if (grantChain) grantNext();
     }
 
     // ------------------------------------------------------------------ chrome
@@ -232,7 +380,7 @@ public class MainActivity extends Activity {
         LinearLayout pill = new LinearLayout(this);
         pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setPadding(dp(6), dp(5), dp(12), dp(5));
-        pill.setBackground(box(card, 20, line));
+        pill.setBackground(box(card, 8, line));
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.aimai_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -251,9 +399,9 @@ public class MainActivity extends Activity {
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        right.addView(roundButton(IconView.CHAT, v -> showPage(2)), lp(40, 40));
+        right.addView(roundButton(IconView.CHAT, v -> showPage(2)), lp(32, 32));
         View.OnClickListener about = v -> showAbout();
-        LinearLayout.LayoutParams second = lp(40, 40);
+        LinearLayout.LayoutParams second = lp(32, 32);
         second.leftMargin = dp(8);
         right.addView(roundButton(IconView.INFO, about), second);
         header.addView(right, new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.CENTER_VERTICAL));
@@ -262,7 +410,7 @@ public class MainActivity extends Activity {
 
     private View roundButton(int icon, View.OnClickListener click) {
         FrameLayout f = new FrameLayout(this);
-        f.setBackground(box(card, 20, line));
+        f.setBackground(box(card, 8, line));
         IconView iv = new IconView(this, icon);
         iv.setColor(Color.rgb(205, 208, 220));
         f.addView(iv, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
@@ -291,12 +439,12 @@ public class MainActivity extends Activity {
         LinearLayout nav = new LinearLayout(this);
         nav.setGravity(Gravity.CENTER);
         nav.setPadding(dp(6), dp(6), dp(6), dp(6));
-        nav.setBackground(box(Color.rgb(13, 14, 21), 34, line));
+        nav.setBackground(box(Color.rgb(13, 14, 21), 12, line));
         for (int i = 0; i < 4; i++) {
             final int index = i;
             FrameLayout cell = new FrameLayout(this);
             View pillBg = new View(this);
-            pillBg.setBackground(rounded(navPill, 26));
+            pillBg.setBackground(rounded(navPill, 9));
             pillBg.setVisibility(View.INVISIBLE);
             cell.addView(pillBg, new FrameLayout.LayoutParams(-1, -1));
             IconView icon = new IconView(this, NAV_ICONS[i]);
@@ -304,7 +452,7 @@ public class MainActivity extends Activity {
             cell.setOnClickListener(v -> showPage(index));
             navIcons[i] = icon;
             navPills[i] = pillBg;
-            nav.addView(cell, new LinearLayout.LayoutParams(0, dp(52), 1f));
+            nav.addView(cell, new LinearLayout.LayoutParams(0, dp(42), 1f));
         }
         stack.addView(nav, new LinearLayout.LayoutParams(-1, -2));
         wrap.addView(stack, new FrameLayout.LayoutParams(-1, -2));
@@ -346,11 +494,17 @@ public class MainActivity extends Activity {
         LinearLayout column = pageColumn(scroll);
 
         column.addView(new BannerView(this), lp(-1, 150));
+        View permissions = buildPermissionCard();
+        if (permissions != null) {
+            LinearLayout.LayoutParams pcp = lp(-1, -2);
+            pcp.topMargin = dp(14);
+            column.addView(permissions, pcp);
+        }
 
         LinearLayout gameCard = new LinearLayout(this);
         gameCard.setOrientation(LinearLayout.VERTICAL);
         gameCard.setPadding(dp(14), dp(14), dp(14), dp(14));
-        gameCard.setBackground(box(card, 24, line));
+        gameCard.setBackground(box(card, 10, line));
         LinearLayout.LayoutParams cp = lp(-1, -2);
         cp.topMargin = dp(18);
         column.addView(gameCard, cp);
@@ -380,18 +534,18 @@ public class MainActivity extends Activity {
         dots.setGravity(Gravity.CENTER);
         more.addView(dots, new FrameLayout.LayoutParams(-1, -1));
         more.setOnClickListener(v -> showMoreMenu(v));
-        row.addView(more, lp(44, 44));
+        row.addView(more, lp(34, 34));
         gameCard.addView(row);
 
         LinearLayout launch = new LinearLayout(this);
         launch.setGravity(Gravity.CENTER_VERTICAL);
         launch.setPadding(dp(18), 0, dp(18), 0);
         AimAiUiStyle.surface(launch, true);
-        TextView launchText = label("Launch", 15, Color.rgb(240, 238, 252), false);
+        TextView launchText = label("Launch", 13, Color.rgb(240, 238, 252), false);
         launch.addView(launchText, new LinearLayout.LayoutParams(0, -2, 1f));
         launch.addView(label("→", 18, Color.rgb(240, 238, 252), false));
-        launch.setOnClickListener(v -> openAssistant());
-        LinearLayout.LayoutParams lpLaunch = lp(-1, 50);
+        launch.setOnClickListener(v -> launchWithPassword());
+        LinearLayout.LayoutParams lpLaunch = lp(-1, 38);
         lpLaunch.topMargin = dp(16);
         gameCard.addView(launch, lpLaunch);
         return scroll;
@@ -438,12 +592,12 @@ public class MainActivity extends Activity {
         TextView name = label("Premium Pass", 27, Color.WHITE, true);
         name.setPadding(0, dp(6), 0, dp(26));
         heroColumn.addView(name);
-        heroColumn.addView(label("Active", 40, Color.WHITE, true));
+        heroColumn.addView(label(key.isEmpty() ? "Not active" : "Active", 40, Color.WHITE, true));
         TextView sub = label("LICENSE STATUS", 10, muted, false);
         sub.setLetterSpacing(0.15f);
         heroColumn.addView(sub);
         hero.addView(heroColumn, new FrameLayout.LayoutParams(-1, -2));
-        TextView chip = label("Active", 11, Color.rgb(140, 210, 170), false);
+        TextView chip = label(key.isEmpty() ? "Locked" : "Active", 11, Color.rgb(140, 210, 170), false);
         chip.setPadding(dp(12), dp(4), dp(12), dp(4));
         chip.setBackground(box(Color.rgb(20, 36, 30), 14, Color.rgb(50, 90, 70)));
         hero.addView(chip, new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.TOP));
@@ -466,7 +620,7 @@ public class MainActivity extends Activity {
 
         TextView signOut = label("Sign out", 15, Color.rgb(224, 128, 96), false);
         signOut.setGravity(Gravity.CENTER);
-        signOut.setBackground(box(Color.TRANSPARENT, 16, Color.rgb(110, 60, 46)));
+        signOut.setBackground(box(Color.TRANSPARENT, 8, Color.rgb(110, 60, 46)));
         signOut.setOnClickListener(v -> new AlertDialog.Builder(this)
                 .setTitle("Sign out")
                 .setMessage("This removes the license from this phone. You will need to enter your key again.")
@@ -477,7 +631,7 @@ public class MainActivity extends Activity {
                     finish();
                 })
                 .show());
-        LinearLayout.LayoutParams sp = lp(-1, 52);
+        LinearLayout.LayoutParams sp = lp(-1, 40);
         sp.topMargin = dp(28);
         column.addView(signOut, sp);
         return scroll;
@@ -492,7 +646,7 @@ public class MainActivity extends Activity {
     private LinearLayout groupCard() {
         LinearLayout group = new LinearLayout(this);
         group.setOrientation(LinearLayout.VERTICAL);
-        group.setBackground(box(card, 22, line));
+        group.setBackground(box(card, 10, line));
         group.setPadding(dp(4), dp(2), dp(4), dp(2));
         return group;
     }
@@ -643,7 +797,7 @@ public class MainActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(12), 0, dp(14), 0);
         FrameLayout badge = new FrameLayout(this);
-        badge.setBackground(box(Color.rgb(24, 25, 38), 14, line));
+        badge.setBackground(box(Color.rgb(24, 25, 38), 8, line));
         IconView iv = new IconView(this, icon);
         iv.setColor(Color.rgb(190, 193, 210));
         badge.addView(iv, new FrameLayout.LayoutParams(dp(18), dp(18), Gravity.CENTER));
@@ -654,7 +808,7 @@ public class MainActivity extends Activity {
         if (value != null) row.addView(label(value, 13, muted, false));
         if (trailing != null) row.addView(trailing);
         if (click != null) row.setOnClickListener(click);
-        parent.addView(row, lp(-1, 62));
+        parent.addView(row, lp(-1, 52));
         if (!last) parent.addView(divider());
     }
 

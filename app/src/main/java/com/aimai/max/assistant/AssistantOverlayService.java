@@ -374,6 +374,8 @@ public class AssistantOverlayService extends Service {
     }
 
     private ImageView bubble;
+    private LinearLayout autoChip;
+    private View autoDot;
     private final android.content.BroadcastReceiver gameStateReceiver = new android.content.BroadcastReceiver() {
         @Override public void onReceive(android.content.Context context, Intent intent) {
             gameForeground = intent.getBooleanExtra("foreground", false);
@@ -408,17 +410,20 @@ public class AssistantOverlayService extends Service {
             pathView.clear();
             pathView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         }
+        if (autoChip != null) autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         setOverlayAlpha(0f);
     }
 
     private void showPanel() {
         if (!gameForeground) return;
+        if (autoChip != null) autoChip.setVisibility(View.GONE);
         if (bubble != null) bubble.setVisibility(View.GONE);
         if (panel != null) panel.setVisibility(View.VISIBLE);
     }
 
     private void showBubble() {
         if (!gameForeground) return;
+        if (autoChip != null) autoChip.setVisibility(View.VISIBLE);
         if (panel != null) panel.setVisibility(View.GONE);
         if (bubble != null) bubble.setVisibility(View.VISIBLE);
     }
@@ -649,6 +654,7 @@ public class AssistantOverlayService extends Service {
                 return;
             }
             autoPlay = checked;
+            refreshAutoChip();
             if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);
             waitingForSettle = false;
             sawMotionAfterShot = false;
@@ -726,7 +732,7 @@ public class AssistantOverlayService extends Service {
                 }
             });
             gameButtons[i] = gb;
-            LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            LinearLayout.LayoutParams gp = new LinearLayout.LayoutParams(0, dp(32), 1f);
             gp.setMargins(dp(2), dp(3), dp(2), dp(3));
             gameRow.addView(gb, gp);
         }
@@ -818,7 +824,7 @@ public class AssistantOverlayService extends Service {
                 }
             });
             swipeButtons[i] = sw;
-            LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(32), 1f);
             swp.setMargins(dp(3), dp(3), dp(3), dp(3));
             swipeRow.addView(sw, swp);
         }
@@ -845,9 +851,9 @@ public class AssistantOverlayService extends Service {
             settings().edit().putInt("power_pct", value).apply();
             powerValue.setText(value + "%");
         });
-        powerRow.addView(minus, new LinearLayout.LayoutParams(dp(56), dp(44)));
-        powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        powerRow.addView(plus, new LinearLayout.LayoutParams(dp(56), dp(44)));
+        powerRow.addView(minus, new LinearLayout.LayoutParams(dp(48), dp(34)));
+        powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(34), 1f));
+        powerRow.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(34)));
         col.addView(powerRow);
 
         col.addView(sectionTitle("MY COINS"));
@@ -868,7 +874,7 @@ public class AssistantOverlayService extends Service {
                 }
             });
             coinButtons[i] = b;
-            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+            LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(32), 1f);
             bp.setMargins(dp(2), dp(3), dp(2), dp(3));
             coinRow.addView(b, bp);
         }
@@ -894,10 +900,97 @@ public class AssistantOverlayService extends Service {
         col.addView(reset);
 
         Button close = makeButton("Close assistant");
-        close.setBackground(shape(Color.rgb(120, 40, 52), 12));
+        close.setBackground(shape(Color.rgb(120, 40, 52), 6));
         close.setOnClickListener(v -> stopSelf());
-        col.addView(close, new LinearLayout.LayoutParams(-1, dp(44)));
+        col.addView(close, new LinearLayout.LayoutParams(-1, dp(34)));
         return col;
+    }
+
+    // ------------------------------------------------------------------ small Auto button next to the logo
+
+    private void setAutoPlay(boolean on) {
+        if (on && !AimAiGestureService.isConnected()) {
+            Toast.makeText(this, "Turn on AimAi Max in Accessibility settings first.",
+                    Toast.LENGTH_LONG).show();
+            startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return;
+        }
+        autoPlay = on;
+        if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(on);
+        waitingForSettle = false;
+        sawMotionAfterShot = false;
+        lastAutoShotAt = 0L;
+        lastAutoStrikerX = -1f;
+        lastAutoStrikerY = -1f;
+        sliderTries = 0;
+        lastSliderAt = 0L;
+        settings().edit().putBoolean("slide_enabled", true).apply();
+        refreshAutoChip();
+        if (panel != null && panel.getVisibility() == View.VISIBLE && currentTab == 1) showTab(1);
+    }
+
+    private void refreshAutoChip() {
+        if (autoChip == null) return;
+        autoChip.setBackground(shape(autoPlay ? Color.rgb(20, 70, 48) : Color.rgb(14, 16, 22), 8));
+        if (autoDot != null) {
+            autoDot.setBackground(shape(autoPlay ? Color.rgb(70, 230, 140) : Color.rgb(96, 100, 112), 6));
+        }
+    }
+
+    /** A small square-cornered button: tap it to start or stop Auto Play, drag it to move it. */
+    private void buildAutoChip() {
+        autoChip = new LinearLayout(this);
+        autoChip.setGravity(Gravity.CENTER);
+        autoChip.setPadding(dp(8), 0, dp(8), 0);
+        autoDot = new View(this);
+        autoChip.addView(autoDot, new LinearLayout.LayoutParams(dp(12), dp(12)));
+        TextView bars = label("\u2261", 16, Color.rgb(200, 204, 218), true);
+        bars.setGravity(Gravity.CENTER);
+        bars.setPadding(dp(8), 0, 0, 0);
+        autoChip.addView(bars);
+        refreshAutoChip();
+
+        final WindowManager.LayoutParams chipParams = new WindowManager.LayoutParams(
+                dp(54), dp(30),
+                overlayType(),
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        chipParams.gravity = Gravity.TOP | Gravity.END;
+        chipParams.x = dp(72);
+        chipParams.y = dp(172);
+        autoChip.setOnTouchListener(new View.OnTouchListener() {
+            private int startX, startY;
+            private float touchX, touchY;
+            private boolean moved;
+            public boolean onTouch(View view, MotionEvent event) {
+                if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                    startX = chipParams.x;
+                    startY = chipParams.y;
+                    touchX = event.getRawX();
+                    touchY = event.getRawY();
+                    moved = false;
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_MOVE) {
+                    int dx = (int) (event.getRawX() - touchX);
+                    int dy = (int) (event.getRawY() - touchY);
+                    if (Math.abs(dx) + Math.abs(dy) > dp(6)) moved = true;
+                    chipParams.x = Math.max(0, startX - dx);
+                    chipParams.y = Math.max(0, startY + dy);
+                    if (autoChip != null) windowManager.updateViewLayout(autoChip, chipParams);
+                    return true;
+                }
+                if (event.getAction() == MotionEvent.ACTION_UP) {
+                    if (!moved) setAutoPlay(!autoPlay);
+                    return true;
+                }
+                return true;
+            }
+        });
+        windowManager.addView(autoChip, chipParams);
+        autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
     }
 
     private void createPanel() {
@@ -954,7 +1047,7 @@ public class AssistantOverlayService extends Service {
         panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(14), dp(12), dp(12), dp(14));
-        GradientDrawable panelBg = shape(Color.argb(245, 12, 14, 20), 20);
+        GradientDrawable panelBg = shape(Color.argb(245, 12, 14, 20), 12);
         panelBg.setStroke(dp(1), Color.rgb(34, 38, 50));
         panel.setBackground(panelBg);
 
@@ -1036,6 +1129,7 @@ public class AssistantOverlayService extends Service {
         guideParams.alpha = 0.8f;
         guideLp = guideParams;
         windowManager.addView(panel, params);
+        buildAutoChip();
         applyGameVisibility();
     }
 
@@ -1082,6 +1176,11 @@ public class AssistantOverlayService extends Service {
         if (panel != null && windowManager != null) {
             try { windowManager.removeView(panel); } catch (IllegalArgumentException ignored) {}
             panel = null;
+        }
+
+        if (autoChip != null && windowManager != null) {
+            try { windowManager.removeView(autoChip); } catch (IllegalArgumentException ignored) {}
+            autoChip = null;
         }
 
         pathView = null;

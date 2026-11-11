@@ -60,7 +60,7 @@ public class PlayStyleCardView extends View {
         super.onDraw(canvas);
         float w = getWidth();
         float h = getHeight();
-        float r = 10f * density;
+        float r = 6f * density;
         float pad = 1f * density;
         RectF box = new RectF(pad, pad, w - pad, h - pad);
 

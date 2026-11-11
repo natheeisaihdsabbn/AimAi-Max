@@ -22,7 +22,7 @@ public final class AimAiUiStyle {
         float density = view.getResources().getDisplayMetrics().density;
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
-        d.setCornerRadius(12f * density);
+        d.setCornerRadius(6f * density);
         d.setStroke(Math.max(1, (int) (density + 0.5f)), stroke);
         return d;
     }
@@ -33,9 +33,9 @@ public final class AimAiUiStyle {
         button.setTextSize(12);
         button.setGravity(Gravity.CENTER);
         float density = button.getResources().getDisplayMetrics().density;
-        button.setMinHeight((int) (44 * density));
-        button.setPadding((int) (14 * density), (int) (8 * density),
-                (int) (14 * density), (int) (8 * density));
+        button.setMinHeight((int) (34 * density));
+        button.setPadding((int) (12 * density), (int) (4 * density),
+                (int) (12 * density), (int) (4 * density));
         button.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(Color.argb(35, 190, 185, 255)),
                 shape(button, PANEL, BORDER), null));
@@ -48,9 +48,9 @@ public final class AimAiUiStyle {
         view.setTextColor(Color.rgb(238, 238, 246));
         view.setTextSize(12);
         float density = view.getResources().getDisplayMetrics().density;
-        view.setPadding((int) (10 * density), (int) (8 * density),
-                (int) (10 * density), (int) (8 * density));
-        view.setMinHeight((int) (40 * density));
+        view.setPadding((int) (8 * density), (int) (4 * density),
+                (int) (8 * density), (int) (4 * density));
+        view.setMinHeight((int) (32 * density));
         view.setBackground(new RippleDrawable(
                 ColorStateList.valueOf(Color.argb(35, 190, 185, 255)),
                 shape(view, selected ? SELECTED : PANEL, selected ? ACCENT : BORDER), null));
