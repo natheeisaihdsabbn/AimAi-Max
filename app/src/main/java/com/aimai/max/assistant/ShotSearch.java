@@ -113,7 +113,7 @@ public final class ShotSearch {
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 400f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
-                        - 0.02f * cand.score - 2f * level;
+                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg - 2f * level;
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
@@ -153,6 +153,21 @@ public final class ShotSearch {
             @Override public int compare(Outcome x, Outcome y) { return Float.compare(y.simScore, x.simScore); }
         });
 
+        // The real game is never pixel perfect. Re-check the best few shots with the aim a little off and the
+        // power a little different: a shot that still pots then beats one that only works exactly.
+        int robustCount = Math.min(10, outcomes.size());
+        long robustStart = android.os.SystemClock.elapsedRealtime();
+        for (int ri = 0; ri < robustCount; ri++) {
+            if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 250L) break;
+            Outcome ro = outcomes.get(ri);
+            if (!ro.potsSomething) continue;
+            float frac = robustFraction(base, si, ro, L, T, R, B, px, py, pr);
+            ro.simScore += 160f * frac - 80f;
+        }
+        Collections.sort(outcomes, new Comparator<Outcome>() {
+            @Override public int compare(Outcome x, Outcome y) { return Float.compare(y.simScore, x.simScore); }
+        });
+
         Outcome best = outcomes.get(0);
         result.best = best;
         best.paths = record(base, si, best, L, T, R, B, px, py, pr);
@@ -165,6 +180,38 @@ public final class ShotSearch {
             result.alts.add(o);
         }
         return result;
+    }
+
+    /**
+     * Share of realistic plays that still pot without a foul. Each play moves the real striker a few pixels off
+     * where the scan saw it, moves the aim point a few pixels, and changes the power a little, just like a real
+     * finger on a real screen does.
+     */
+    private static float robustFraction(List<CarromSim.Disc> base, int si, Outcome o, float L, float T, float R,
+                                        float B, float[] px, float[] py, float pr) {
+        Shot s = o.shot;
+        CarromSim.Disc striker = base.get(si);
+        float w = R - L;
+        float nTrue = 0.004f * w, nDet = 0.003f * w, nAim = 0.004f * w;
+        long seed = 12345L;
+        int good = 0, total = 14;
+        for (int k = 0; k < total; k++) {
+            float[] u = new float[7];
+            for (int j = 0; j < 7; j++) {
+                seed = (seed * 6364136223846793005L + 1442695040888963407L);
+                u[j] = ((seed >>> 40) & 0xFFFF) / 65535f * 2f - 1f;
+            }
+            striker.x = s.strikerX + u[0] * nTrue;
+            striker.y = s.strikerY + u[1] * nTrue;
+            float dx = (s.aimX + u[4] * nAim) - (s.strikerX + u[2] * nDet);
+            float dy = (s.aimY + u[5] * nAim) - (s.strikerY + u[3] * nDet);
+            float len = (float) Math.sqrt(dx * dx + dy * dy);
+            if (len < 1f) return 0f;
+            float pw = 1f + 0.12f * u[6];
+            CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[o.level] * pw, L, T, R, B, px, py, pr, false);
+            if (!r.strikerPotted && r.minePotted + r.queenPotted > 0 && r.otherPotted == 0) good++;
+        }
+        return good / (float) total;
     }
 
     private static float[] record(List<CarromSim.Disc> base, int si, Outcome o, float L, float T, float R,

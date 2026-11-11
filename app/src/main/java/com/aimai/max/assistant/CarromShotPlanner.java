@@ -25,6 +25,10 @@ public final class CarromShotPlanner {
 
     private CarromShotPlanner() {}
 
+    /** A shot needs at least this many striker radii between the striker and the point it aims at.
+     *  Shorter than that, one or two pixels of error in the striker position turn the swipe by many degrees. */
+    private static final float MIN_SHOT_RS = 3f;
+
     public static class Shot {
         public boolean valid;
         public int kind;
@@ -116,7 +120,7 @@ public final class CarromShotPlanner {
                         // ---- 0: direct shot
                         float vx0 = gx - sx, vy0 = gy - sy;
                         float sl = (float) Math.sqrt(vx0 * vx0 + vy0 * vy0);
-                        if (sl > 1f) {
+                        if (sl > MIN_SHOT_RS * rs) {
                             float vx = vx0 / sl, vy = vy0 / sl;
                             float cos = vx * ux + vy * uy;
                             boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
@@ -207,7 +211,7 @@ public final class CarromShotPlanner {
                         if (cgx < L + rs || cgx > R - rs || cgy < T + rs || cgy > B - rs) continue;
                         float vx0 = cgx - sx, vy0 = cgy - sy;
                         float sl = (float) Math.sqrt(vx0 * vx0 + vy0 * vy0);
-                        if (sl <= 1f) continue;
+                        if (sl <= MIN_SHOT_RS * rs) continue;
                         float vx = vx0 / sl, vy = vy0 / sl;
                         float cos = vx * bx + vy * by;
                         boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
