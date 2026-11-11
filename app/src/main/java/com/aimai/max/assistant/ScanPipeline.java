@@ -124,6 +124,36 @@ public class ScanPipeline {
 
     // ------------------------------------------------------------------ output
 
+    /**
+     * It is my turn only when the striker slider under the board is bright wood coloured. On the other
+     * player's turn the game dims it (dark purple), and no lines must be drawn and no shot taken then.
+     */
+    private static boolean isMyTurn(Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
+        int w = bmp.getWidth();
+        int h = bmp.getHeight();
+        float base = Math.min(a.board.width(), a.board.height());
+        int cy = Math.round(a.board.bottom + 0.36f * base);
+        int x0 = Math.round(0.22f * w);
+        int x1 = Math.round(0.78f * w);
+        int n = Math.max(1, (x1 - x0) / 4 + 1);
+        for (int y = cy - 16; y <= cy + 16; y += 2) {
+            if (y < 0 || y >= h) continue;
+            int[] rs = new int[n];
+            int[] gs = new int[n];
+            int c = 0;
+            for (int x = x0; x < x1 && c < n; x += 4) {
+                int px = bmp.getPixel(x, y);
+                rs[c] = Color.red(px);
+                gs[c] = Color.green(px);
+                c++;
+            }
+            java.util.Arrays.sort(rs, 0, c);
+            java.util.Arrays.sort(gs, 0, c);
+            if (c > 0 && rs[c / 2] > 150 && gs[c / 2] > 85) return true;
+        }
+        return false;
+    }
+
     private static float[] normalizePaths(float[] raw, float fw, float fh) {
         if (raw == null) return new float[0];
         float[] out = new float[raw.length];
@@ -219,7 +249,8 @@ public class ScanPipeline {
         guideIntent.putExtra("gutiCount", coinCount);
 
         CarromBoardAnalyzer.Piece striker = result.striker;
-        if (striker != null && result.board.detected) {
+        boolean myTurn = result.board.detected && isMyTurn(bmp, result);
+        if (striker != null && result.board.detected && myTurn) {
             markMine(ctx, bmp, result);
             boolean slideOn = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
                     .getBoolean("slide_enabled", true);

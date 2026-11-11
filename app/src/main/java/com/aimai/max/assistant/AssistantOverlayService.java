@@ -156,7 +156,7 @@ public class AssistantOverlayService extends Service {
                 } else if (curFound || bestFound) {
                     float aimX = curFound ? intent.getFloatExtra("curAimX", x) : intent.getFloatExtra("bestGhostX", x);
                     float aimY = curFound ? intent.getFloatExtra("curAimY", y) : intent.getFloatExtra("bestGhostY", y);
-                    boolean pullBack = "PULL".equals(settings().getString("swipe_mode", "FORWARD"));
+                    boolean pullBack = true;
                     float powerMul = settings().getInt("power_pct", 100) / 100f;
                     AimAiGestureService.swipeDurationMs = humanStyle()
                             ? 480 + (int) (Math.random() * 220) : 260;
@@ -376,6 +376,8 @@ public class AssistantOverlayService extends Service {
     private ImageView bubble;
     private LinearLayout autoChip;
     private View autoDot;
+    private LinearLayout dock;
+    private TextView autoSymbol;
     private final android.content.BroadcastReceiver gameStateReceiver = new android.content.BroadcastReceiver() {
         @Override public void onReceive(android.content.Context context, Intent intent) {
             gameForeground = intent.getBooleanExtra("foreground", false);
@@ -410,20 +412,20 @@ public class AssistantOverlayService extends Service {
             pathView.clear();
             pathView.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         }
-        if (autoChip != null) autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
+        if (dock != null) dock.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
         setOverlayAlpha(0f);
     }
 
     private void showPanel() {
         if (!gameForeground) return;
-        if (autoChip != null) autoChip.setVisibility(View.GONE);
+        if (dock != null) dock.setVisibility(View.GONE);
         if (bubble != null) bubble.setVisibility(View.GONE);
         if (panel != null) panel.setVisibility(View.VISIBLE);
     }
 
     private void showBubble() {
         if (!gameForeground) return;
-        if (autoChip != null) autoChip.setVisibility(View.VISIBLE);
+        if (dock != null) dock.setVisibility(View.VISIBLE);
         if (panel != null) panel.setVisibility(View.GONE);
         if (bubble != null) bubble.setVisibility(View.VISIBLE);
     }
@@ -498,7 +500,7 @@ public class AssistantOverlayService extends Service {
     }
 
     private void applyAccent() {
-        if (bubble != null) bubble.setBackground(shape(accent, 28));
+        if (bubble != null) bubble.setBackground(shape(accent, 10));
         if (aimGuideView != null) aimGuideView.setAccentColor(accent);
         if (styleCards != null) for (StylePreviewView v : styleCards) v.setAccent(accent);
         if (collisionCards != null) for (StylePreviewView v : collisionCards) v.setAccent(accent);
@@ -806,30 +808,6 @@ public class AssistantOverlayService extends Service {
             statsView.setVisibility(checked ? View.VISIBLE : View.GONE);
         });
 
-        col.addView(sectionTitle("SWIPE DIRECTION"));
-        LinearLayout swipeRow = new LinearLayout(this);
-        final String[] swipeKeys = {"FORWARD", "PULL"};
-        final String[] swipeNames = {"Drag forward", "Pull back"};
-        final TextView[] swipeButtons = new TextView[2];
-        String savedSwipe = settings().getString("swipe_mode", "FORWARD");
-        for (int i = 0; i < 2; i++) {
-            final int index = i;
-            TextView sw = label(swipeNames[i], 13, Color.WHITE, false);
-            sw.setGravity(Gravity.CENTER);
-            AimAiUiStyle.chip(sw, swipeKeys[i].equals(savedSwipe));
-            sw.setOnClickListener(v -> {
-                settings().edit().putString("swipe_mode", swipeKeys[index]).apply();
-                for (int k = 0; k < 2; k++) {
-                    AimAiUiStyle.chip(swipeButtons[k], k == index);
-                }
-            });
-            swipeButtons[i] = sw;
-            LinearLayout.LayoutParams swp = new LinearLayout.LayoutParams(0, dp(32), 1f);
-            swp.setMargins(dp(3), dp(3), dp(3), dp(3));
-            swipeRow.addView(sw, swp);
-        }
-        col.addView(swipeRow);
-
         col.addView(sectionTitle("POWER"));
         LinearLayout powerRow = new LinearLayout(this);
         powerRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -932,42 +910,35 @@ public class AssistantOverlayService extends Service {
 
     private void refreshAutoChip() {
         if (autoChip == null) return;
-        autoChip.setBackground(shape(autoPlay ? Color.rgb(20, 70, 48) : Color.rgb(14, 16, 22), 8));
+        autoChip.setBackground(shape(Color.rgb(12, 13, 18), 10));
         if (autoDot != null) {
-            autoDot.setBackground(shape(autoPlay ? Color.rgb(70, 230, 140) : Color.rgb(96, 100, 112), 6));
+            GradientDrawable ring = shape(autoPlay ? Color.rgb(24, 70, 50) : Color.rgb(34, 36, 46), 15);
+            ring.setStroke(dp(1), autoPlay ? Color.rgb(70, 230, 140) : Color.rgb(110, 114, 130));
+            autoDot.setBackground(ring);
         }
+        if (autoSymbol != null) autoSymbol.setText(autoPlay ? "II" : "\u25B6");
     }
 
-    /** A small square-cornered button: tap it to start or stop Auto Play, drag it to move it. */
-    private void buildAutoChip() {
+    /**
+     * The Auto button sits on top of the logo button; both are one window, so they move together.
+     * Tap = start or stop Auto Play, drag = move both.
+     */
+    private void buildAutoChip(final WindowManager.LayoutParams dockParams) {
         autoChip = new LinearLayout(this);
         autoChip.setGravity(Gravity.CENTER);
-        autoChip.setPadding(dp(8), 0, dp(8), 0);
-        autoDot = new View(this);
-        autoChip.addView(autoDot, new LinearLayout.LayoutParams(dp(12), dp(12)));
-        TextView bars = label("\u2261", 16, Color.rgb(200, 204, 218), true);
-        bars.setGravity(Gravity.CENTER);
-        bars.setPadding(dp(8), 0, 0, 0);
-        autoChip.addView(bars);
+        autoSymbol = label("\u25B6", 12, Color.WHITE, true);
+        autoSymbol.setGravity(Gravity.CENTER);
+        autoDot = autoSymbol;
+        autoChip.addView(autoSymbol, new LinearLayout.LayoutParams(dp(30), dp(30)));
         refreshAutoChip();
-
-        final WindowManager.LayoutParams chipParams = new WindowManager.LayoutParams(
-                dp(54), dp(30),
-                overlayType(),
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                        | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                PixelFormat.TRANSLUCENT);
-        chipParams.gravity = Gravity.TOP | Gravity.END;
-        chipParams.x = dp(72);
-        chipParams.y = dp(172);
         autoChip.setOnTouchListener(new View.OnTouchListener() {
             private int startX, startY;
             private float touchX, touchY;
             private boolean moved;
             public boolean onTouch(View view, MotionEvent event) {
                 if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                    startX = chipParams.x;
-                    startY = chipParams.y;
+                    startX = dockParams.x;
+                    startY = dockParams.y;
                     touchX = event.getRawX();
                     touchY = event.getRawY();
                     moved = false;
@@ -977,9 +948,9 @@ public class AssistantOverlayService extends Service {
                     int dx = (int) (event.getRawX() - touchX);
                     int dy = (int) (event.getRawY() - touchY);
                     if (Math.abs(dx) + Math.abs(dy) > dp(6)) moved = true;
-                    chipParams.x = Math.max(0, startX - dx);
-                    chipParams.y = Math.max(0, startY + dy);
-                    if (autoChip != null) windowManager.updateViewLayout(autoChip, chipParams);
+                    dockParams.x = Math.max(0, startX - dx);
+                    dockParams.y = Math.max(0, startY + dy);
+                    if (dock != null) windowManager.updateViewLayout(dock, dockParams);
                     return true;
                 }
                 if (event.getAction() == MotionEvent.ACTION_UP) {
@@ -989,8 +960,6 @@ public class AssistantOverlayService extends Service {
                 return true;
             }
         });
-        windowManager.addView(autoChip, chipParams);
-        autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);
     }
 
     private void createPanel() {
@@ -1001,10 +970,10 @@ public class AssistantOverlayService extends Service {
         bubble.setImageResource(R.drawable.aimai_logo);
         bubble.setScaleType(ImageView.ScaleType.CENTER_CROP);
         bubble.setPadding(dp(2), dp(2), dp(2), dp(2));
-        bubble.setBackground(shape(accent, 28));
+        bubble.setBackground(shape(accent, 10));
         bubble.setClipToOutline(true);
         WindowManager.LayoutParams bubbleParams = new WindowManager.LayoutParams(
-                dp(54), dp(54),
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
                 overlayType(),
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                         | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
@@ -1031,7 +1000,7 @@ public class AssistantOverlayService extends Service {
                     if (Math.abs(dx) + Math.abs(dy) > dp(6)) moved = true;
                     bubbleParams.x = Math.max(0, startX - dx);
                     bubbleParams.y = Math.max(0, startY + dy);
-                    if (bubble != null) windowManager.updateViewLayout(bubble, bubbleParams);
+                    if (dock != null) windowManager.updateViewLayout(dock, bubbleParams);
                     return true;
                 }
                 if (event.getAction() == MotionEvent.ACTION_UP) {
@@ -1041,7 +1010,15 @@ public class AssistantOverlayService extends Service {
                 return true;
             }
         });
-        windowManager.addView(bubble, bubbleParams);
+        dock = new LinearLayout(this);
+        dock.setOrientation(LinearLayout.VERTICAL);
+        dock.setGravity(Gravity.CENTER_HORIZONTAL);
+        buildAutoChip(bubbleParams);
+        dock.addView(autoChip, new LinearLayout.LayoutParams(dp(46), dp(40)));
+        LinearLayout.LayoutParams bubbleLp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        bubbleLp.topMargin = dp(2);
+        dock.addView(bubble, bubbleLp);
+        windowManager.addView(dock, bubbleParams);
 
         // ---- video-style panel: header, icon rail on the left, content on the right
         panel = new LinearLayout(this);
@@ -1129,7 +1106,6 @@ public class AssistantOverlayService extends Service {
         guideParams.alpha = 0.8f;
         guideLp = guideParams;
         windowManager.addView(panel, params);
-        buildAutoChip();
         applyGameVisibility();
     }
 
@@ -1178,8 +1154,9 @@ public class AssistantOverlayService extends Service {
             panel = null;
         }
 
-        if (autoChip != null && windowManager != null) {
-            try { windowManager.removeView(autoChip); } catch (IllegalArgumentException ignored) {}
+        if (dock != null && windowManager != null) {
+            try { windowManager.removeView(dock); } catch (IllegalArgumentException ignored) {}
+            dock = null;
             autoChip = null;
         }
 
