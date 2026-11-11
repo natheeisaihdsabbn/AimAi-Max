@@ -113,7 +113,8 @@ public final class ShotSearch {
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 400f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
-                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg - 2f * level;
+                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg - 2f * level
+                        - 45f * cand.blockers - (cand.kind != 0 ? 35f : 0f);
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
@@ -162,7 +163,7 @@ public final class ShotSearch {
             Outcome ro = outcomes.get(ri);
             if (!ro.potsSomething) continue;
             float frac = robustFraction(base, si, ro, L, T, R, B, px, py, pr);
-            ro.simScore += 160f * frac - 80f;
+            ro.simScore += 240f * frac - 160f;
         }
         Collections.sort(outcomes, new Comparator<Outcome>() {
             @Override public int compare(Outcome x, Outcome y) { return Float.compare(y.simScore, x.simScore); }
@@ -192,9 +193,9 @@ public final class ShotSearch {
         Shot s = o.shot;
         CarromSim.Disc striker = base.get(si);
         float w = R - L;
-        float nTrue = 0.004f * w, nDet = 0.003f * w, nAim = 0.004f * w;
+        float nTrue = 0.006f * w, nDet = 0.004f * w, nAim = 0.006f * w;
         long seed = 12345L;
-        int good = 0, total = 14;
+        int good = 0, total = 20;
         for (int k = 0; k < total; k++) {
             float[] u = new float[7];
             for (int j = 0; j < 7; j++) {

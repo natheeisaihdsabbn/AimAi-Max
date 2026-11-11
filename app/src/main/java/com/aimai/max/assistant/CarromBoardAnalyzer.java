@@ -294,7 +294,7 @@ public final class CarromBoardAnalyzer {
     private static Piece classifyCoin(Bitmap bmp, float px, float py, float rc, int step) {
         int w = bmp.getWidth(), h = bmp.getHeight();
         float[] hsv = new float[3];
-        double sr = 0, sg = 0, sb = 0;
+        int[] sr = new int[25], sg = new int[25], sb = new int[25];
         int n = 0, dark = 0;
         float r0 = 0.6f * rc;
         for (int dy = -2; dy <= 2; dy++) {
@@ -304,15 +304,18 @@ public final class CarromBoardAnalyzer {
                 int x = Math.max(0, Math.min(w - 1, Math.round(px + ox)));
                 int y = Math.max(0, Math.min(h - 1, Math.round(py + oy)));
                 int c = bmp.getPixel(x, y);
-                sr += Color.red(c);
-                sg += Color.green(c);
-                sb += Color.blue(c);
+                sr[n] = Color.red(c);
+                sg[n] = Color.green(c);
+                sb[n] = Color.blue(c);
                 Color.colorToHSV(c, hsv);
                 if (hsv[2] < 0.35f && hsv[1] < 0.45f) dark++;
                 n++;
             }
         }
-        int ar = (int) (sr / n), ag = (int) (sg / n), ab = (int) (sb / n);
+        Arrays.sort(sr, 0, n);
+        Arrays.sort(sg, 0, n);
+        Arrays.sort(sb, 0, n);
+        int ar = sr[n / 2], ag = sg[n / 2], ab = sb[n / 2];
         int rgb = Color.rgb(ar, ag, ab);
         Color.colorToHSV(rgb, hsv);
         float hh = hsv[0], s = hsv[1], v = hsv[2];
