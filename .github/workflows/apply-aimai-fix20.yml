@@ -1,0 +1,332 @@
+name: Apply AimAi Max launcher, permissions and auto button
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix20*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Password on Launch, permissions inside the app, small Auto button, smaller square buttons
+        run: |
+          python3 - <<'PYEND'
+          import base64
+          def dec(s):
+              return base64.b64decode("".join(s.split())).decode("utf-8")
+          main_methods = dec("""
+          ICAgIC8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSBw
+          ZXJtaXNzaW9ucyAoYWxsIGFza2VkIGZyb20gaW5zaWRlIHRoZSBhcHApCgogICAgcHJpdmF0ZSBib29sZWFuIGFza2VkTm90aWYg
+          PSBmYWxzZSwgYXNrZWRCYXR0ZXJ5ID0gZmFsc2UsIGFza2VkT3ZlcmxheSA9IGZhbHNlLCBhc2tlZEFjY2VzcyA9IGZhbHNlOwog
+          ICAgcHJpdmF0ZSBib29sZWFuIGdyYW50Q2hhaW4gPSBmYWxzZTsKCiAgICBwcml2YXRlIGJvb2xlYW4gbm90aWZHcmFudGVkKCkg
+          ewogICAgICAgIHJldHVybiBCdWlsZC5WRVJTSU9OLlNES19JTlQgPCAzMwogICAgICAgICAgICAgICAgfHwgY2hlY2tTZWxmUGVy
+          bWlzc2lvbihhbmRyb2lkLk1hbmlmZXN0LnBlcm1pc3Npb24uUE9TVF9OT1RJRklDQVRJT05TKQogICAgICAgICAgICAgICAgPT0g
+          UGFja2FnZU1hbmFnZXIuUEVSTUlTU0lPTl9HUkFOVEVEOwogICAgfQoKICAgIHByaXZhdGUgYm9vbGVhbiBiYXR0ZXJ5T2soKSB7
+          CiAgICAgICAgaWYgKEJ1aWxkLlZFUlNJT04uU0RLX0lOVCA8IDIzKSByZXR1cm4gdHJ1ZTsKICAgICAgICBQb3dlck1hbmFnZXIg
+          cG0gPSAoUG93ZXJNYW5hZ2VyKSBnZXRTeXN0ZW1TZXJ2aWNlKFBPV0VSX1NFUlZJQ0UpOwogICAgICAgIHJldHVybiBwbSAhPSBu
+          dWxsICYmIHBtLmlzSWdub3JpbmdCYXR0ZXJ5T3B0aW1pemF0aW9ucyhnZXRQYWNrYWdlTmFtZSgpKTsKICAgIH0KCiAgICBwcml2
+          YXRlIGJvb2xlYW4gb3ZlcmxheU9rKCkgewogICAgICAgIHJldHVybiBCdWlsZC5WRVJTSU9OLlNES19JTlQgPCAyMyB8fCBTZXR0
+          aW5ncy5jYW5EcmF3T3ZlcmxheXModGhpcyk7CiAgICB9CgogICAgcHJpdmF0ZSBib29sZWFuIGFjY2Vzc09rKCkgewogICAgICAg
+          IHJldHVybiBBaW1BaUdlc3R1cmVTZXJ2aWNlLmlzQ29ubmVjdGVkKCk7CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGFza05vdGlm
+          aWNhdGlvbnMoKSB7CiAgICAgICAgYXNrZWROb3RpZiA9IHRydWU7CiAgICAgICAgaWYgKEJ1aWxkLlZFUlNJT04uU0RLX0lOVCA+
+          PSAzMykgewogICAgICAgICAgICByZXF1ZXN0UGVybWlzc2lvbnMobmV3IFN0cmluZ1tde2FuZHJvaWQuTWFuaWZlc3QucGVybWlz
+          c2lvbi5QT1NUX05PVElGSUNBVElPTlN9LCAxMDAxKTsKICAgICAgICB9CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGFza0JhdHRl
+          cnkoKSB7CiAgICAgICAgYXNrZWRCYXR0ZXJ5ID0gdHJ1ZTsKICAgICAgICB0cnkgewogICAgICAgICAgICBzdGFydEFjdGl2aXR5
+          KG5ldyBJbnRlbnQoU2V0dGluZ3MuQUNUSU9OX1JFUVVFU1RfSUdOT1JFX0JBVFRFUllfT1BUSU1JWkFUSU9OUywKICAgICAgICAg
+          ICAgICAgICAgICBVcmkucGFyc2UoInBhY2thZ2U6IiArIGdldFBhY2thZ2VOYW1lKCkpKSk7CiAgICAgICAgfSBjYXRjaCAoRXhj
+          ZXB0aW9uIGUpIHsKICAgICAgICAgICAgc3RhcnRBY3Rpdml0eShuZXcgSW50ZW50KFNldHRpbmdzLkFDVElPTl9JR05PUkVfQkFU
+          VEVSWV9PUFRJTUlaQVRJT05fU0VUVElOR1MpKTsKICAgICAgICB9CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGFza092ZXJsYXko
+          KSB7CiAgICAgICAgYXNrZWRPdmVybGF5ID0gdHJ1ZTsKICAgICAgICBzdGFydEFjdGl2aXR5KG5ldyBJbnRlbnQoU2V0dGluZ3Mu
+          QUNUSU9OX01BTkFHRV9PVkVSTEFZX1BFUk1JU1NJT04sCiAgICAgICAgICAgICAgICBVcmkucGFyc2UoInBhY2thZ2U6IiArIGdl
+          dFBhY2thZ2VOYW1lKCkpKSk7CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGFza0FjY2Vzc2liaWxpdHkoKSB7CiAgICAgICAgYXNr
+          ZWRBY2Nlc3MgPSB0cnVlOwogICAgICAgIFRvYXN0Lm1ha2VUZXh0KHRoaXMsICJUdXJuIG9uIEFpbUFpIE1heCwgdGhlbiBjb21l
+          IGJhY2suIiwgVG9hc3QuTEVOR1RIX0xPTkcpLnNob3coKTsKICAgICAgICBzdGFydEFjdGl2aXR5KG5ldyBJbnRlbnQoU2V0dGlu
+          Z3MuQUNUSU9OX0FDQ0VTU0lCSUxJVFlfU0VUVElOR1MpKTsKICAgIH0KCiAgICAvKiogQXNrcyBmb3Igd2hhdGV2ZXIgaXMgc3Rp
+          bGwgbWlzc2luZywgb25lIHBlcm1pc3Npb24gYXQgYSB0aW1lLCBlYWNoIHRpbWUgdGhlIGFwcCBjb21lcyBiYWNrIHRvIHRoZSBm
+          cm9udC4gKi8KICAgIHByaXZhdGUgdm9pZCBncmFudE5leHQoKSB7CiAgICAgICAgaWYgKCFub3RpZkdyYW50ZWQoKSAmJiAhYXNr
+          ZWROb3RpZikgeyBhc2tOb3RpZmljYXRpb25zKCk7IHJldHVybjsgfQogICAgICAgIGlmICghYmF0dGVyeU9rKCkgJiYgIWFza2Vk
+          QmF0dGVyeSkgeyBhc2tCYXR0ZXJ5KCk7IHJldHVybjsgfQogICAgICAgIGlmICghb3ZlcmxheU9rKCkgJiYgIWFza2VkT3Zlcmxh
+          eSkgeyBhc2tPdmVybGF5KCk7IHJldHVybjsgfQogICAgICAgIGlmICghYWNjZXNzT2soKSAmJiAhYXNrZWRBY2Nlc3MpIHsgYXNr
+          QWNjZXNzaWJpbGl0eSgpOyByZXR1cm47IH0KICAgICAgICBncmFudENoYWluID0gZmFsc2U7CiAgICAgICAgaWYgKGhvc3QgIT0g
+          bnVsbCAmJiBjdXJyZW50ID09IDApIHNob3dQYWdlKDApOwogICAgfQoKICAgIHByaXZhdGUgVmlldyBidWlsZFBlcm1pc3Npb25D
+          YXJkKCkgewogICAgICAgIGJvb2xlYW4gbiA9IG5vdGlmR3JhbnRlZCgpOwogICAgICAgIGJvb2xlYW4gYiA9IGJhdHRlcnlPaygp
+          OwogICAgICAgIGJvb2xlYW4gbyA9IG92ZXJsYXlPaygpOwogICAgICAgIGJvb2xlYW4gYSA9IGFjY2Vzc09rKCk7CiAgICAgICAg
+          aWYgKG4gJiYgYiAmJiBvICYmIGEpIHJldHVybiBudWxsOwogICAgICAgIExpbmVhckxheW91dCBib3ggPSBuZXcgTGluZWFyTGF5
+          b3V0KHRoaXMpOwogICAgICAgIGJveC5zZXRPcmllbnRhdGlvbihMaW5lYXJMYXlvdXQuVkVSVElDQUwpOwogICAgICAgIGJveC5z
+          ZXRQYWRkaW5nKGRwKDEyKSwgZHAoMTApLCBkcCgxMiksIGRwKDEwKSk7CiAgICAgICAgYm94LnNldEJhY2tncm91bmQoYm94KGNh
+          cmQsIDEwLCBsaW5lKSk7CiAgICAgICAgYm94LmFkZFZpZXcobGFiZWwoIlBlcm1pc3Npb25zIiwgMTMsIENvbG9yLldISVRFLCB0
+          cnVlKSk7CiAgICAgICAgYWRkUGVybVJvdyhib3gsICJOb3RpZmljYXRpb25zIiwgbiwgdiAtPiB7IGFza2VkTm90aWYgPSBmYWxz
+          ZTsgYXNrTm90aWZpY2F0aW9ucygpOyB9KTsKICAgICAgICBhZGRQZXJtUm93KGJveCwgIlJ1biBpbiBiYWNrZ3JvdW5kIiwgYiwg
+          diAtPiBhc2tCYXR0ZXJ5KCkpOwogICAgICAgIGFkZFBlcm1Sb3coYm94LCAiRGlzcGxheSBvdmVyIG90aGVyIGFwcHMiLCBvLCB2
+          IC0+IGFza092ZXJsYXkoKSk7CiAgICAgICAgYWRkUGVybVJvdyhib3gsICJBY2Nlc3NpYmlsaXR5IChBdXRvIFBsYXkpIiwgYSwg
+          diAtPiBhc2tBY2Nlc3NpYmlsaXR5KCkpOwogICAgICAgIFRleHRWaWV3IGFsbCA9IGxhYmVsKCJBbGxvdyBhbGwiLCAxMiwgQ29s
+          b3IucmdiKDI0MCwgMjM4LCAyNTIpLCB0cnVlKTsKICAgICAgICBhbGwuc2V0R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAg
+          ICAgQWltQWlVaVN0eWxlLnN1cmZhY2UoYWxsLCB0cnVlKTsKICAgICAgICBhbGwuc2V0T25DbGlja0xpc3RlbmVyKHYgLT4gewog
+          ICAgICAgICAgICBhc2tlZE5vdGlmID0gZmFsc2U7CiAgICAgICAgICAgIGFza2VkQmF0dGVyeSA9IGZhbHNlOwogICAgICAgICAg
+          ICBhc2tlZE92ZXJsYXkgPSBmYWxzZTsKICAgICAgICAgICAgYXNrZWRBY2Nlc3MgPSBmYWxzZTsKICAgICAgICAgICAgZ3JhbnRD
+          aGFpbiA9IHRydWU7CiAgICAgICAgICAgIGdyYW50TmV4dCgpOwogICAgICAgIH0pOwogICAgICAgIExpbmVhckxheW91dC5MYXlv
+          dXRQYXJhbXMgYXAgPSBscCgtMSwgMzQpOwogICAgICAgIGFwLnRvcE1hcmdpbiA9IGRwKDgpOwogICAgICAgIGJveC5hZGRWaWV3
+          KGFsbCwgYXApOwogICAgICAgIHJldHVybiBib3g7CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIGFkZFBlcm1Sb3coTGluZWFyTGF5
+          b3V0IHBhcmVudCwgU3RyaW5nIG5hbWUsIGJvb2xlYW4gb24sIFZpZXcuT25DbGlja0xpc3RlbmVyIGFzaykgewogICAgICAgIExp
+          bmVhckxheW91dCByb3cgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIHJvdy5zZXRHcmF2aXR5KEdyYXZpdHkuQ0VO
+          VEVSX1ZFUlRJQ0FMKTsKICAgICAgICByb3cuYWRkVmlldyhsYWJlbChuYW1lLCAxMiwgQ29sb3IucmdiKDIwMCwgMjA0LCAyMTgp
+          LCBmYWxzZSksIG5ldyBMaW5lYXJMYXlvdXQuTGF5b3V0UGFyYW1zKDAsIC0yLCAxZikpOwogICAgICAgIFRleHRWaWV3IHN0YXRl
+          ID0gbGFiZWwob24gPyAiT24iIDogIkFsbG93IiwgMTEsCiAgICAgICAgICAgICAgICBvbiA/IENvbG9yLnJnYigxNDAsIDIxMCwg
+          MTcwKSA6IENvbG9yLldISVRFLCBmYWxzZSk7CiAgICAgICAgc3RhdGUuc2V0R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAg
+          ICAgaWYgKCFvbikgewogICAgICAgICAgICBBaW1BaVVpU3R5bGUuc3VyZmFjZShzdGF0ZSwgZmFsc2UpOwogICAgICAgICAgICBz
+          dGF0ZS5zZXRPbkNsaWNrTGlzdGVuZXIoYXNrKTsKICAgICAgICB9CiAgICAgICAgcm93LmFkZFZpZXcoc3RhdGUsIGxwKG9uID8g
+          NDAgOiA2MCwgMjgpKTsKICAgICAgICBwYXJlbnQuYWRkVmlldyhyb3csIGxwKC0xLCAzNCkpOwogICAgfQoKICAgIC8vIC0tLS0t
+          LS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSBwYXNzd29yZCAoYXNr
+          ZWQgd2hlbiBMYXVuY2ggaXMgdGFwcGVkKQoKICAgIHByaXZhdGUgdm9pZCBsYXVuY2hXaXRoUGFzc3dvcmQoKSB7CiAgICAgICAg
+          aWYgKExpY2Vuc2VNYW5hZ2VyLmhhc1ZhbGlkTG9jYWxMaWNlbnNlKHRoaXMpKSB7CiAgICAgICAgICAgIG9wZW5Bc3Npc3RhbnQo
+          KTsKICAgICAgICAgICAgcmV0dXJuOwogICAgICAgIH0KICAgICAgICBmaW5hbCBFZGl0VGV4dCBpbnB1dCA9IG5ldyBFZGl0VGV4
+          dCh0aGlzKTsKICAgICAgICBpbnB1dC5zZXRIaW50KCJQYXNzd29yZCIpOwogICAgICAgIGlucHV0LnNldFNpbmdsZUxpbmUodHJ1
+          ZSk7CiAgICAgICAgaW5wdXQuc2V0SW5wdXRUeXBlKElucHV0VHlwZS5UWVBFX0NMQVNTX1RFWFQKICAgICAgICAgICAgICAgIHwg
+          SW5wdXRUeXBlLlRZUEVfVEVYVF9GTEFHX0NBUF9DSEFSQUNURVJTCiAgICAgICAgICAgICAgICB8IElucHV0VHlwZS5UWVBFX1RF
+          WFRfRkxBR19OT19TVUdHRVNUSU9OUyk7CiAgICAgICAgZmluYWwgQWxlcnREaWFsb2cgZGlhbG9nID0gbmV3IEFsZXJ0RGlhbG9n
+          LkJ1aWxkZXIodGhpcykKICAgICAgICAgICAgICAgIC5zZXRUaXRsZSgiRW50ZXIgcGFzc3dvcmQiKQogICAgICAgICAgICAgICAg
+          LnNldFZpZXcoaW5wdXQpCiAgICAgICAgICAgICAgICAuc2V0TmVnYXRpdmVCdXR0b24oIkNhbmNlbCIsIG51bGwpCiAgICAgICAg
+          ICAgICAgICAuc2V0UG9zaXRpdmVCdXR0b24oIkNvbnRpbnVlIiwgbnVsbCkKICAgICAgICAgICAgICAgIC5jcmVhdGUoKTsKICAg
+          ICAgICBkaWFsb2cuc2V0T25TaG93TGlzdGVuZXIoZCAtPiBkaWFsb2cuZ2V0QnV0dG9uKEFsZXJ0RGlhbG9nLkJVVFRPTl9QT1NJ
+          VElWRSkuc2V0T25DbGlja0xpc3RlbmVyKHYgLT4gewogICAgICAgICAgICBTdHJpbmcga2V5ID0gaW5wdXQuZ2V0VGV4dCgpLnRv
+          U3RyaW5nKCkudHJpbSgpOwogICAgICAgICAgICBpZiAoa2V5LmlzRW1wdHkoKSkgewogICAgICAgICAgICAgICAgaW5wdXQuc2V0
+          RXJyb3IoIkVudGVyIHRoZSBwYXNzd29yZCIpOwogICAgICAgICAgICAgICAgcmV0dXJuOwogICAgICAgICAgICB9CiAgICAgICAg
+          ICAgIGRpYWxvZy5nZXRCdXR0b24oQWxlcnREaWFsb2cuQlVUVE9OX1BPU0lUSVZFKS5zZXRFbmFibGVkKGZhbHNlKTsKICAgICAg
+          ICAgICAgTGljZW5zZU1hbmFnZXIudmVyaWZ5KHRoaXMsIGtleSwgcmVzdWx0IC0+IHsKICAgICAgICAgICAgICAgIGlmIChpc0Zp
+          bmlzaGluZygpKSByZXR1cm47CiAgICAgICAgICAgICAgICBpZiAocmVzdWx0ID09IExpY2Vuc2VNYW5hZ2VyLlJlc3VsdC5PSykg
+          ewogICAgICAgICAgICAgICAgICAgIGRpYWxvZy5kaXNtaXNzKCk7CiAgICAgICAgICAgICAgICAgICAgTGljZW5zZU1hbmFnZXIu
+          c3RhcnRQZXJpb2RpY0NoZWNrKHRoaXMpOwogICAgICAgICAgICAgICAgICAgIG9wZW5Bc3Npc3RhbnQoKTsKICAgICAgICAgICAg
+          ICAgICAgICByZXR1cm47CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBkaWFsb2cuZ2V0QnV0dG9uKEFsZXJ0RGlh
+          bG9nLkJVVFRPTl9QT1NJVElWRSkuc2V0RW5hYmxlZCh0cnVlKTsKICAgICAgICAgICAgICAgIGlmIChyZXN1bHQgPT0gTGljZW5z
+          ZU1hbmFnZXIuUmVzdWx0LklOVkFMSUQpIGlucHV0LnNldEVycm9yKCJXcm9uZyBwYXNzd29yZCIpOwogICAgICAgICAgICAgICAg
+          ZWxzZSBpZiAocmVzdWx0ID09IExpY2Vuc2VNYW5hZ2VyLlJlc3VsdC5PVEhFUl9ERVZJQ0UpIGlucHV0LnNldEVycm9yKCJBbHJl
+          YWR5IHVzZWQgb24gYW5vdGhlciBwaG9uZSIpOwogICAgICAgICAgICAgICAgZWxzZSBpbnB1dC5zZXRFcnJvcigiQ2Fubm90IHJl
+          YWNoIHRoZSBzZXJ2ZXIiKTsKICAgICAgICAgICAgfSk7CiAgICAgICAgfSkpOwogICAgICAgIGRpYWxvZy5zaG93KCk7CiAgICB9
+          Cgo=
+          """)
+          overlay_methods = dec("""
+          ICAgIC8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSBz
+          bWFsbCBBdXRvIGJ1dHRvbiBuZXh0IHRvIHRoZSBsb2dvCgogICAgcHJpdmF0ZSB2b2lkIHNldEF1dG9QbGF5KGJvb2xlYW4gb24p
+          IHsKICAgICAgICBpZiAob24gJiYgIUFpbUFpR2VzdHVyZVNlcnZpY2UuaXNDb25uZWN0ZWQoKSkgewogICAgICAgICAgICBUb2Fz
+          dC5tYWtlVGV4dCh0aGlzLCAiVHVybiBvbiBBaW1BaSBNYXggaW4gQWNjZXNzaWJpbGl0eSBzZXR0aW5ncyBmaXJzdC4iLAogICAg
+          ICAgICAgICAgICAgICAgIFRvYXN0LkxFTkdUSF9MT05HKS5zaG93KCk7CiAgICAgICAgICAgIHN0YXJ0QWN0aXZpdHkobmV3IElu
+          dGVudChhbmRyb2lkLnByb3ZpZGVyLlNldHRpbmdzLkFDVElPTl9BQ0NFU1NJQklMSVRZX1NFVFRJTkdTKQogICAgICAgICAgICAg
+          ICAgICAgIC5hZGRGbGFncyhJbnRlbnQuRkxBR19BQ1RJVklUWV9ORVdfVEFTSykpOwogICAgICAgICAgICByZXR1cm47CiAgICAg
+          ICAgfQogICAgICAgIGF1dG9QbGF5ID0gb247CiAgICAgICAgaWYgKHZpc2libGVTZWFyY2hTd2l0Y2ggIT0gbnVsbCkgdmlzaWJs
+          ZVNlYXJjaFN3aXRjaC5zZXRFbmFibGVkKG9uKTsKICAgICAgICB3YWl0aW5nRm9yU2V0dGxlID0gZmFsc2U7CiAgICAgICAgc2F3
+          TW90aW9uQWZ0ZXJTaG90ID0gZmFsc2U7CiAgICAgICAgbGFzdEF1dG9TaG90QXQgPSAwTDsKICAgICAgICBsYXN0QXV0b1N0cmlr
+          ZXJYID0gLTFmOwogICAgICAgIGxhc3RBdXRvU3RyaWtlclkgPSAtMWY7CiAgICAgICAgc2xpZGVyVHJpZXMgPSAwOwogICAgICAg
+          IGxhc3RTbGlkZXJBdCA9IDBMOwogICAgICAgIHNldHRpbmdzKCkuZWRpdCgpLnB1dEJvb2xlYW4oInNsaWRlX2VuYWJsZWQiLCB0
+          cnVlKS5hcHBseSgpOwogICAgICAgIHJlZnJlc2hBdXRvQ2hpcCgpOwogICAgICAgIGlmIChwYW5lbCAhPSBudWxsICYmIHBhbmVs
+          LmdldFZpc2liaWxpdHkoKSA9PSBWaWV3LlZJU0lCTEUgJiYgY3VycmVudFRhYiA9PSAxKSBzaG93VGFiKDEpOwogICAgfQoKICAg
+          IHByaXZhdGUgdm9pZCByZWZyZXNoQXV0b0NoaXAoKSB7CiAgICAgICAgaWYgKGF1dG9DaGlwID09IG51bGwpIHJldHVybjsKICAg
+          ICAgICBhdXRvQ2hpcC5zZXRCYWNrZ3JvdW5kKHNoYXBlKGF1dG9QbGF5ID8gQ29sb3IucmdiKDIwLCA3MCwgNDgpIDogQ29sb3Iu
+          cmdiKDE0LCAxNiwgMjIpLCA4KSk7CiAgICAgICAgaWYgKGF1dG9Eb3QgIT0gbnVsbCkgewogICAgICAgICAgICBhdXRvRG90LnNl
+          dEJhY2tncm91bmQoc2hhcGUoYXV0b1BsYXkgPyBDb2xvci5yZ2IoNzAsIDIzMCwgMTQwKSA6IENvbG9yLnJnYig5NiwgMTAwLCAx
+          MTIpLCA2KSk7CiAgICAgICAgfQogICAgfQoKICAgIC8qKiBBIHNtYWxsIHNxdWFyZS1jb3JuZXJlZCBidXR0b246IHRhcCBpdCB0
+          byBzdGFydCBvciBzdG9wIEF1dG8gUGxheSwgZHJhZyBpdCB0byBtb3ZlIGl0LiAqLwogICAgcHJpdmF0ZSB2b2lkIGJ1aWxkQXV0
+          b0NoaXAoKSB7CiAgICAgICAgYXV0b0NoaXAgPSBuZXcgTGluZWFyTGF5b3V0KHRoaXMpOwogICAgICAgIGF1dG9DaGlwLnNldEdy
+          YXZpdHkoR3Jhdml0eS5DRU5URVIpOwogICAgICAgIGF1dG9DaGlwLnNldFBhZGRpbmcoZHAoOCksIDAsIGRwKDgpLCAwKTsKICAg
+          ICAgICBhdXRvRG90ID0gbmV3IFZpZXcodGhpcyk7CiAgICAgICAgYXV0b0NoaXAuYWRkVmlldyhhdXRvRG90LCBuZXcgTGluZWFy
+          TGF5b3V0LkxheW91dFBhcmFtcyhkcCgxMiksIGRwKDEyKSkpOwogICAgICAgIFRleHRWaWV3IGJhcnMgPSBsYWJlbCgiXHUyMjYx
+          IiwgMTYsIENvbG9yLnJnYigyMDAsIDIwNCwgMjE4KSwgdHJ1ZSk7CiAgICAgICAgYmFycy5zZXRHcmF2aXR5KEdyYXZpdHkuQ0VO
+          VEVSKTsKICAgICAgICBiYXJzLnNldFBhZGRpbmcoZHAoOCksIDAsIDAsIDApOwogICAgICAgIGF1dG9DaGlwLmFkZFZpZXcoYmFy
+          cyk7CiAgICAgICAgcmVmcmVzaEF1dG9DaGlwKCk7CgogICAgICAgIGZpbmFsIFdpbmRvd01hbmFnZXIuTGF5b3V0UGFyYW1zIGNo
+          aXBQYXJhbXMgPSBuZXcgV2luZG93TWFuYWdlci5MYXlvdXRQYXJhbXMoCiAgICAgICAgICAgICAgICBkcCg1NCksIGRwKDMwKSwK
+          ICAgICAgICAgICAgICAgIG92ZXJsYXlUeXBlKCksCiAgICAgICAgICAgICAgICBXaW5kb3dNYW5hZ2VyLkxheW91dFBhcmFtcy5G
+          TEFHX05PVF9GT0NVU0FCTEUKICAgICAgICAgICAgICAgICAgICAgICAgfCBXaW5kb3dNYW5hZ2VyLkxheW91dFBhcmFtcy5GTEFH
+          X0xBWU9VVF9JTl9TQ1JFRU4sCiAgICAgICAgICAgICAgICBQaXhlbEZvcm1hdC5UUkFOU0xVQ0VOVCk7CiAgICAgICAgY2hpcFBh
+          cmFtcy5ncmF2aXR5ID0gR3Jhdml0eS5UT1AgfCBHcmF2aXR5LkVORDsKICAgICAgICBjaGlwUGFyYW1zLnggPSBkcCg3Mik7CiAg
+          ICAgICAgY2hpcFBhcmFtcy55ID0gZHAoMTcyKTsKICAgICAgICBhdXRvQ2hpcC5zZXRPblRvdWNoTGlzdGVuZXIobmV3IFZpZXcu
+          T25Ub3VjaExpc3RlbmVyKCkgewogICAgICAgICAgICBwcml2YXRlIGludCBzdGFydFgsIHN0YXJ0WTsKICAgICAgICAgICAgcHJp
+          dmF0ZSBmbG9hdCB0b3VjaFgsIHRvdWNoWTsKICAgICAgICAgICAgcHJpdmF0ZSBib29sZWFuIG1vdmVkOwogICAgICAgICAgICBw
+          dWJsaWMgYm9vbGVhbiBvblRvdWNoKFZpZXcgdmlldywgTW90aW9uRXZlbnQgZXZlbnQpIHsKICAgICAgICAgICAgICAgIGlmIChl
+          dmVudC5nZXRBY3Rpb24oKSA9PSBNb3Rpb25FdmVudC5BQ1RJT05fRE9XTikgewogICAgICAgICAgICAgICAgICAgIHN0YXJ0WCA9
+          IGNoaXBQYXJhbXMueDsKICAgICAgICAgICAgICAgICAgICBzdGFydFkgPSBjaGlwUGFyYW1zLnk7CiAgICAgICAgICAgICAgICAg
+          ICAgdG91Y2hYID0gZXZlbnQuZ2V0UmF3WCgpOwogICAgICAgICAgICAgICAgICAgIHRvdWNoWSA9IGV2ZW50LmdldFJhd1koKTsK
+          ICAgICAgICAgICAgICAgICAgICBtb3ZlZCA9IGZhbHNlOwogICAgICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAg
+          ICAgICAgICAgfQogICAgICAgICAgICAgICAgaWYgKGV2ZW50LmdldEFjdGlvbigpID09IE1vdGlvbkV2ZW50LkFDVElPTl9NT1ZF
+          KSB7CiAgICAgICAgICAgICAgICAgICAgaW50IGR4ID0gKGludCkgKGV2ZW50LmdldFJhd1goKSAtIHRvdWNoWCk7CiAgICAgICAg
+          ICAgICAgICAgICAgaW50IGR5ID0gKGludCkgKGV2ZW50LmdldFJhd1koKSAtIHRvdWNoWSk7CiAgICAgICAgICAgICAgICAgICAg
+          aWYgKE1hdGguYWJzKGR4KSArIE1hdGguYWJzKGR5KSA+IGRwKDYpKSBtb3ZlZCA9IHRydWU7CiAgICAgICAgICAgICAgICAgICAg
+          Y2hpcFBhcmFtcy54ID0gTWF0aC5tYXgoMCwgc3RhcnRYIC0gZHgpOwogICAgICAgICAgICAgICAgICAgIGNoaXBQYXJhbXMueSA9
+          IE1hdGgubWF4KDAsIHN0YXJ0WSArIGR5KTsKICAgICAgICAgICAgICAgICAgICBpZiAoYXV0b0NoaXAgIT0gbnVsbCkgd2luZG93
+          TWFuYWdlci51cGRhdGVWaWV3TGF5b3V0KGF1dG9DaGlwLCBjaGlwUGFyYW1zKTsKICAgICAgICAgICAgICAgICAgICByZXR1cm4g
+          dHJ1ZTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGlmIChldmVudC5nZXRBY3Rpb24oKSA9PSBNb3Rpb25FdmVu
+          dC5BQ1RJT05fVVApIHsKICAgICAgICAgICAgICAgICAgICBpZiAoIW1vdmVkKSBzZXRBdXRvUGxheSghYXV0b1BsYXkpOwogICAg
+          ICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAgcmV0dXJuIHRydWU7
+          CiAgICAgICAgICAgIH0KICAgICAgICB9KTsKICAgICAgICB3aW5kb3dNYW5hZ2VyLmFkZFZpZXcoYXV0b0NoaXAsIGNoaXBQYXJh
+          bXMpOwogICAgICAgIGF1dG9DaGlwLnNldFZpc2liaWxpdHkoZ2FtZUZvcmVncm91bmQgPyBWaWV3LlZJU0lCTEUgOiBWaWV3LkdP
+          TkUpOwogICAgfQoK
+          """)
+
+          root = "app/src/main/"
+          files = {
+              "main": root + "java/com/aimai/max/MainActivity.java",
+              "overlay": root + "java/com/aimai/max/assistant/AssistantOverlayService.java",
+              "style": root + "java/com/aimai/max/ui/AimAiUiStyle.java",
+              "card": root + "java/com/aimai/max/assistant/PlayStyleCardView.java",
+              "manifest": root + "AndroidManifest.xml",
+          }
+          texts = {k: open(v, encoding="utf-8").read() for k, v in files.items()}
+
+          if "buildAutoChip" in texts["overlay"]:
+              print("already applied")
+              raise SystemExit(0)
+
+          # (old, new, how many times old must be found)
+          plans = {}
+
+          plans["manifest"] = [
+              ('    <uses-permission android:name="android.permission.INTERNET"/>\n',
+               '    <uses-permission android:name="android.permission.INTERNET"/>\n'
+               '    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />\n', 1),
+          ]
+
+          plans["style"] = [
+              ("d.setCornerRadius(12f * density);", "d.setCornerRadius(6f * density);", 1),
+              ("button.setMinHeight((int) (44 * density));", "button.setMinHeight((int) (34 * density));", 1),
+              ("button.setPadding((int) (14 * density), (int) (8 * density),\n                (int) (14 * density), (int) (8 * density));",
+               "button.setPadding((int) (12 * density), (int) (4 * density),\n                (int) (12 * density), (int) (4 * density));", 1),
+              ("view.setPadding((int) (10 * density), (int) (8 * density),\n                (int) (10 * density), (int) (8 * density));",
+               "view.setPadding((int) (8 * density), (int) (4 * density),\n                (int) (8 * density), (int) (4 * density));", 1),
+              ("view.setMinHeight((int) (40 * density));", "view.setMinHeight((int) (32 * density));", 1),
+          ]
+
+          plans["card"] = [
+              ("float r = 10f * density;", "float r = 6f * density;", 1),
+          ]
+
+          plans["main"] = [
+              ("import android.widget.FrameLayout;\n",
+               "import android.widget.EditText;\nimport android.os.PowerManager;\nimport android.text.InputType;\nimport android.widget.FrameLayout;\n", 1),
+              ("        if (!LicenseManager.hasValidLocalLicense(this)) {\n"
+               "            startActivity(new Intent(this, LicenseActivity.class));\n"
+               "            finish();\n"
+               "            return;\n"
+               "        }\n"
+               "        LicenseManager.startPeriodicCheck(this);\n"
+               "        if (Build.VERSION.SDK_INT >= 33 &&\n"
+               "                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)\n"
+               "                        != PackageManager.PERMISSION_GRANTED) {\n"
+               "            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1001);\n"
+               "        }\n",
+               "        if (LicenseManager.hasValidLocalLicense(this)) LicenseManager.startPeriodicCheck(this);\n", 1),
+              ("    @Override\n    protected void onCreate(Bundle state) {\n",
+               main_methods + "    @Override\n    protected void onCreate(Bundle state) {\n", 1),
+              ("        if (host != null && current == 3) showPage(3);\n",
+               "        if (host != null && (current == 3 || current == 0)) showPage(current);\n"
+               "        if (grantChain) grantNext();\n", 1),
+              ("        launch.setOnClickListener(v -> openAssistant());\n",
+               "        launch.setOnClickListener(v -> launchWithPassword());\n", 1),
+              ("        column.addView(new BannerView(this), lp(-1, 150));\n",
+               "        column.addView(new BannerView(this), lp(-1, 150));\n"
+               "        View permissions = buildPermissionCard();\n"
+               "        if (permissions != null) {\n"
+               "            LinearLayout.LayoutParams pcp = lp(-1, -2);\n"
+               "            pcp.topMargin = dp(14);\n"
+               "            column.addView(permissions, pcp);\n"
+               "        }\n", 1),
+              # smaller, square-cornered buttons
+              ("f.setBackground(box(card, 20, line));", "f.setBackground(box(card, 8, line));", 1),
+              ("pill.setBackground(box(card, 20, line));", "pill.setBackground(box(card, 8, line));", 1),
+              ("right.addView(roundButton(IconView.CHAT, v -> showPage(2)), lp(40, 40));",
+               "right.addView(roundButton(IconView.CHAT, v -> showPage(2)), lp(32, 32));", 1),
+              ("LinearLayout.LayoutParams second = lp(40, 40);", "LinearLayout.LayoutParams second = lp(32, 32);", 1),
+              ("nav.setBackground(box(Color.rgb(13, 14, 21), 34, line));", "nav.setBackground(box(Color.rgb(13, 14, 21), 12, line));", 1),
+              ("pillBg.setBackground(rounded(navPill, 26));", "pillBg.setBackground(rounded(navPill, 9));", 1),
+              ("nav.addView(cell, new LinearLayout.LayoutParams(0, dp(52), 1f));", "nav.addView(cell, new LinearLayout.LayoutParams(0, dp(42), 1f));", 1),
+              ("gameCard.setBackground(box(card, 24, line));", "gameCard.setBackground(box(card, 10, line));", 1),
+              ("row.addView(more, lp(44, 44));", "row.addView(more, lp(34, 34));", 1),
+              ("LinearLayout.LayoutParams lpLaunch = lp(-1, 50);", "LinearLayout.LayoutParams lpLaunch = lp(-1, 38);", 1),
+              ('TextView launchText = label("Launch", 15, Color.rgb(240, 238, 252), false);',
+               'TextView launchText = label("Launch", 13, Color.rgb(240, 238, 252), false);', 1),
+              ("signOut.setBackground(box(Color.TRANSPARENT, 16, Color.rgb(110, 60, 46)));",
+               "signOut.setBackground(box(Color.TRANSPARENT, 8, Color.rgb(110, 60, 46)));", 1),
+              ("LinearLayout.LayoutParams sp = lp(-1, 52);", "LinearLayout.LayoutParams sp = lp(-1, 40);", 1),
+              ("group.setBackground(box(card, 22, line));", "group.setBackground(box(card, 10, line));", 1),
+              ("parent.addView(row, lp(-1, 62));", "parent.addView(row, lp(-1, 52));", 1),
+              ("badge.setBackground(box(Color.rgb(24, 25, 38), 14, line));", "badge.setBackground(box(Color.rgb(24, 25, 38), 8, line));", 1),
+              ('heroColumn.addView(label("Active", 40, Color.WHITE, true));',
+               'heroColumn.addView(label(key.isEmpty() ? "Not active" : "Active", 40, Color.WHITE, true));', 1),
+              ('TextView chip = label("Active", 11, Color.rgb(140, 210, 170), false);',
+               'TextView chip = label(key.isEmpty() ? "Locked" : "Active", 11, Color.rgb(140, 210, 170), false);', 1),
+          ]
+
+          plans["overlay"] = [
+              ("    private ImageView bubble;\n",
+               "    private ImageView bubble;\n    private LinearLayout autoChip;\n    private View autoDot;\n", 1),
+              ("    private void createPanel() {\n",
+               overlay_methods + "    private void createPanel() {\n", 1),
+              ("        windowManager.addView(panel, params);\n        applyGameVisibility();\n    }\n",
+               "        windowManager.addView(panel, params);\n        buildAutoChip();\n        applyGameVisibility();\n    }\n", 1),
+              ("        setOverlayAlpha(0f);\n    }\n\n    private void showPanel() {\n        if (!gameForeground) return;\n"
+               "        if (bubble != null) bubble.setVisibility(View.GONE);\n        if (panel != null) panel.setVisibility(View.VISIBLE);\n    }\n\n"
+               "    private void showBubble() {\n        if (!gameForeground) return;\n"
+               "        if (panel != null) panel.setVisibility(View.GONE);\n        if (bubble != null) bubble.setVisibility(View.VISIBLE);\n    }\n",
+               "        if (autoChip != null) autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);\n"
+               "        setOverlayAlpha(0f);\n    }\n\n    private void showPanel() {\n        if (!gameForeground) return;\n"
+               "        if (autoChip != null) autoChip.setVisibility(View.GONE);\n"
+               "        if (bubble != null) bubble.setVisibility(View.GONE);\n        if (panel != null) panel.setVisibility(View.VISIBLE);\n    }\n\n"
+               "    private void showBubble() {\n        if (!gameForeground) return;\n"
+               "        if (autoChip != null) autoChip.setVisibility(View.VISIBLE);\n"
+               "        if (panel != null) panel.setVisibility(View.GONE);\n        if (bubble != null) bubble.setVisibility(View.VISIBLE);\n    }\n", 1),
+              ("        pathView = null;\n\n        if (aimGuideView != null && windowManager != null) {\n",
+               "        if (autoChip != null && windowManager != null) {\n"
+               "            try { windowManager.removeView(autoChip); } catch (IllegalArgumentException ignored) {}\n"
+               "            autoChip = null;\n"
+               "        }\n\n"
+               "        pathView = null;\n\n        if (aimGuideView != null && windowManager != null) {\n", 1),
+              ("            autoPlay = checked;\n            if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);\n",
+               "            autoPlay = checked;\n            refreshAutoChip();\n            if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);\n", 1),
+              # smaller, square-cornered panel buttons
+              ("new LinearLayout.LayoutParams(0, dp(40), 1f)", "new LinearLayout.LayoutParams(0, dp(32), 1f)", 3),
+              ("new LinearLayout.LayoutParams(dp(56), dp(44))", "new LinearLayout.LayoutParams(dp(48), dp(34))", 2),
+              ("new LinearLayout.LayoutParams(0, dp(44), 1f)", "new LinearLayout.LayoutParams(0, dp(34), 1f)", 1),
+              ("col.addView(close, new LinearLayout.LayoutParams(-1, dp(44)));", "col.addView(close, new LinearLayout.LayoutParams(-1, dp(34)));", 1),
+              ("GradientDrawable panelBg = shape(Color.argb(245, 12, 14, 20), 20);", "GradientDrawable panelBg = shape(Color.argb(245, 12, 14, 20), 12);", 1),
+              ("close.setBackground(shape(Color.rgb(120, 40, 52), 12));", "close.setBackground(shape(Color.rgb(120, 40, 52), 6));", 1),
+          ]
+
+          # check every anchor first; change nothing if one is missing
+          for key, pairs in plans.items():
+              for old, new, times in pairs:
+                  found = texts[key].count(old)
+                  assert found == times, key + ": anchor found " + str(found) + " times (need " + str(times) + "), nothing changed: " + old[:80]
+          for key, pairs in plans.items():
+              src = texts[key]
+              for old, new, times in pairs:
+                  src = src.replace(old, new)
+              open(files[key], "w", encoding="utf-8").write(src)
+              print("edited", key)
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Password on Launch, in-app permissions, small Auto button, smaller square buttons"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
