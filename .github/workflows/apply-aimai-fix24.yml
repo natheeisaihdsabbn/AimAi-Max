@@ -1,0 +1,59 @@
+name: Apply AimAi Max steady shot choice and robust coin colour
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix24*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Prefer direct unblocked shots, steadier plan, coin colour not changed by drawn lines
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          H4sIAENU9GoC/7VWTXPjNgy9+1eg6mRGarTyx3rTHXfcTjb7AzqT3lwfKJGSWFOkBqTsTX99QdJ25Njd9FJdRIIPD9AjAFt2vUEH
+          9sVOSmYFrCFhfT+1WE07JvX0L7Zn08p0UyZpT7ZvU2attI5pN00msgYldEruBcNmn8GvMF9NgJ4j2+lkM98WaB3KPk2mSQb3QK/J
+          hIsaBJcu1awTOfRMos2hY7gTmEWinrmWiALfPXhcMFOGZDU9RfeIHISuDJe6WSeDqz98TrICBeNpFtCUZyQFqb1rpA70KHUM73Na
+          AVPe7QVIBSUFT7IzEoUbUIdtbRBYDqVnCzm/8pE6wguKVVGZgahZBus1zHMYxdBVSww1nXO44+BkJyykWggO84yQxrX0JVC1TDeC
+          r+DOJnAH6Zg0B7ZZ/TzbZu8lFIXyrih6xSqRemB0G8mXHJJbGh5QOuEDR4e3apFv1QaVJj9S6vA7ippEpjhS5zDoUplqJ3gOXKKo
+          SJbWOLsC14oXKEXL9sKvwXpCSt2vG79m9rS1shsUcwYLikDPF6Z3kYZk5MeVa9EMTQukG0WvjNQWlDE7aIzhV0xQDg6MFtDLb0Id
+          VbYBg8IOyhWTUJPJM5E/C4ZVW/g+IIE2E0gT+JfnA8yK2aKGn6Ci1ApbGRTB+HC2VYN71I0SX0VDJwGrxF6oX/7USU4K/x/cRP19
+          5uWnM0e8L7RkTYNhJ0nkH9Ywg9/gI+FWMKszn22Wj6WolWEO9B84+KanVGdLz3mgWv4q3NH08WR6lN0F6urrr+kerumW13QPZ7rL
+          9KhoYykQLAdnHFO0nC9DYHgHtphdE4Z5YAoqqedwE/fE9jDz0WtkFan3eVa/Ib/hsliOXTzBMdKW/G7cSmyzRQZPVOFU5soMuILB
+          xibqJOdKwJ4pUs3Up8bqFU2VUOk0Wa0BBhzZQYOS1AGsQmOpk0LPxAajiDR/wM86spc0MXbh1KvjvQ8tTQSgLkpCtyW+k04N88QQ
+          TffFMOSPmqmXvwXe7BxuhpJStRiVts3xXfo3aTC+EB3POI3v4+llrRBms41UWhzCdvFpeyS9tJSXlvcDXV96nKj+8p5IfqSZytMq
+          GzGdQc0rqEFBc/Y2rHyFlXRxEXV7Fljc6C38h8hj2Hdjj4Gj6NfNw7y8Ka0y/ysEU9D+B6gZGZuTsRwZy2C8+qBHREb/Cyz98yC2
+          3KuuxwlenDfvnJev58mbuohpe9koj8X2mLHX57T3yXoZwn7UfDczpPb7BwkiTNIvCQAA
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Steady shot choice: direct unblocked shots first, coin colour by median"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
