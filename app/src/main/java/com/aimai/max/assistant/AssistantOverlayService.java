@@ -72,7 +72,7 @@ public class AssistantOverlayService extends Service {
                               android.content.Intent intent) {
             lastScanAt = android.os.SystemClock.elapsedRealtime();
             // Everything (guide, scanning results, AUTO PLAY) is dead while the game is not in front.
-            if (aimGuideView == null || !enabled || !gameForeground
+            if (aimGuideView == null || !gameForeground
                     || !AimAiGestureService.isGameForeground()) {
                 return;
             }
@@ -108,7 +108,7 @@ public class AssistantOverlayService extends Service {
                 return;
             }
 
-            setOverlayAlpha(0.8f);
+            setOverlayAlpha(enabled ? 0.8f : 0f);
             if (pathView != null) pathView.clear();
             float x = intent.getFloatExtra("pieceX", 0.5f);
             float y = intent.getFloatExtra("pieceY", 0.8f);
@@ -124,7 +124,7 @@ public class AssistantOverlayService extends Service {
             // Slide the striker only when another spot is clearly better, and only twice per shot.
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
             boolean wantSlide = slideOn && bestFound && sliderTries < 3 && Math.abs(bestX - x) > 0.015f
-                    && (!curFound || bestScore > curScore + 12f);
+                    && (!curFound || bestScore > curScore + 90f);
 
             // Draw the shot that will be played: the simulated path of the striker and every coin it moves,
             // including wall bounces. "Visible search" also shows the other shots that were tried, thin.
@@ -135,7 +135,7 @@ public class AssistantOverlayService extends Service {
                         settings().getBoolean("visible_search2", false) ? intent.getFloatArrayExtra("curAlts") : null,
                         intent.getFloatExtra(drawPre + "GhostX", -1f),
                         intent.getFloatExtra(drawPre + "GhostY", -1f));
-                aimGuideView.setGuideEnabled(true);
+                aimGuideView.setGuideEnabled(enabled);
             } else {
                 aimGuideView.clearSearch();
                 aimGuideView.setGuideEnabled(false);
@@ -531,7 +531,10 @@ public class AssistantOverlayService extends Service {
         Switch enabledSwitch = accentSwitch(enabled);
         enabledSwitch.setOnCheckedChangeListener((b, checked) -> {
             enabled = checked;
-            if (!checked && aimGuideView != null) aimGuideView.setGuideEnabled(false);
+            if (!checked) {
+                if (aimGuideView != null) aimGuideView.setGuideEnabled(false);
+                setOverlayAlpha(0f);
+            }
         });
         col.addView(switchRow("Enabled", enabledSwitch));
 

@@ -106,10 +106,10 @@ public final class ShotSearch {
             for (int level = 0; level < SPEEDS.length; level++) {
                 CarromSim.Result r = CarromSim.run(base, si, dx, dy, SPEEDS[level], L, T, R, B, px, py, pr, false);
                 result.tried++;
-                boolean nearStrikerPocket = r.strikerMinPocket < pr * 1.7f;
+                boolean nearStrikerPocket = r.strikerMinPocket < pr * 2.4f;
                 // the real striker rolls further than the simulated one, so the same shot is also tried 35 percent harder
                 CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);
-                boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 1.7f;
+                boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.4f;
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 400f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
@@ -209,7 +209,8 @@ public final class ShotSearch {
             if (len < 1f) return 0f;
             float pw = 1f + 0.12f * u[6];
             CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[o.level] * pw, L, T, R, B, px, py, pr, false);
-            if (!r.strikerPotted && r.minePotted + r.queenPotted > 0 && r.otherPotted == 0) good++;
+            if (!r.strikerPotted && r.strikerMinPocket > pr * 2.4f
+                    && r.minePotted + r.queenPotted > 0 && r.otherPotted == 0) good++;
         }
         return good / (float) total;
     }
