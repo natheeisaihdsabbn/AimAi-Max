@@ -1,0 +1,58 @@
+name: Apply AimAi Max auto play independent of drawings, steady striker, foul margin
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix23*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Auto Play independent of Enabled, no endless striker sliding, bigger striker-foul margin
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          H4sIAElN9GoC/7VVwVLbMBC95ys27sBYTeoktDPQtKGTQ+HUKdPM9AIcFHsdq9iSK8mkTOm/dyU7IYQkUIb6EkvZffv26a0silJp
+          C+bGtKbcIIwg4GXZMzruFVzI3g9+zXuxKnpc0Jr2fvW4McJYLm0vaIkUcpQhpUdcz64ZHMNg2AJ6GrTFP+eDy0gbq0UZBr2AQQfo
+          p9VKMAVMhA0lL7ALJRfadKHg+go1q4FKbjMC8ngdcHF+mxjSriqpuovoAspYJULORkFl0zdHAYs08iRkPpp41qAgpEutoT28FrIu
+          7zgNgecu7QZIhVxgErBlpEZbaemXqdLAuzB1aJ7zHR6pg05QHUexqgiaMxiNYNCFlRoyzgghpf8T2EvAigINhBIxgQGjSGUz6gTi
+          jMsZJkPYMwHsQbgK2gV+PjzsX7LHCNVCuVSNZc5jDF1gnbYiXzAPNmk418KiK1wnrKtFuXHmVWq9ggMGk0xR78h1nFGb4A7ciW4z
+          boljnqu5oQVCrIioVXOuE0NxpYqv0IJw76RKDlqYq5Y3RuAgJx4xcmYkluctCANYe6ZK5cglSAqd1GXPatQR6Kgh8kXIZvMjtQKv
+          YRAdph8uZNCl7l4I8iB65yFZdxfNlBv7jZp0UEusM2UtWeD2dmXveZSfD7+dPs1Q2F4H298nKQohsVl3aPmzQpTN+hj6dQxZeplE
+          89BnMFMq6XQ2trK91APax3e0CWmTJu55EZokySUNyrJe7fq3DL5eo875zRDGlVVwRq9QVMa6OYYEacYSUNL7Pvgs+TSngYEw0XxO
+          o2YYmLmgKWrsPl7crg3oBPW1iHGr951UdDefViLB7wLnjrWs8twdcxvrav59RkN7ojTOtLt2LuQmmVzcWBRjcYqGLjtcFBfm9F52
+          yBj83nZwW9n8DwYPbWpwId04LzMe9qOjlHmXwc64hVafwGXAEPp12uY5Xm0yIii/aA43tLrCTSUfTWw47KjbmDlsx5U+8d8PUmxK
+          Wk1i0oZ8TPv1awcGB03jO6biSUDvt0rhB5W+ADSKfkDvnX27Pnu2u+eU5wbZ9mugQffHvd7AA7v9Y8l1vAfeSdej/tzdA08xEF0R
+          fwHaadEgYgkAAA==
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Auto Play works with drawings off, striker slides only when clearly better, bigger foul margin"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
