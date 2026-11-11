@@ -1,0 +1,77 @@
+name: Apply AimAi Max safer and more accurate shot choice
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix22*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Shot search - realistic-error check, no near-contact shots, thin-cut penalty
+        run: |
+          cat > /tmp/p1.b64 <<'B64END'
+          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
+          B64END
+          cat > /tmp/p2.b64 <<'B64END'
+          H4sIAEwx9GoC/61UTYvbMBC9+1c8BAE7uEmWHlqSplBKoT30g2Zv2bBM7HEi6khGUj5M6X/vKN4UQ3eXPUQnaebNvDcjafSusS7A
+          tz5pKGwxj9sRuc1hebNKvCvEYhs2afTmYFPYUpvNXO1D9eqtykaOqUyzRFdQX798u198/n57/3OhoA0keppAVuO0CamiOoJbUNPU
+          mkuVzeBIe8ai9YF3n046pJNMdGjnhXaZIFUP4QcKjI/knN0ttjb8qMkYdmmG33/ujMqF5UVIwV6g4+EQH+AFAsNcelBAzeQDwlZ7
+          7Mi08MHpX+xEZak11hyOzEb8/M9DpjyfGysVQgeQ3sVUox4ThoBIcUHwYUsxAYUc1jCsWI4WjT5x7WErsOh2sXd9ksZ6HbQV4949
+          eI66YazbTmbJG8fsRxiOe7SXXvhAQReotKEaVW2lzt5FSZ9fVzMJy/JLux9bcr2pr/EeN5V08s7gmdVxHE6S+nCaYAxf5zi08dh2
+          x1n/zp6l6ysdwvkrkb+o2Hfzc7WFNUGbPc+eJr5excL5f8lXUyBlr5JKHhjlWMdXdv5q3R8l7zkOAleMCruX70oZ5tKBHIpMIc8X
+          ZzMG5RQDrzAQvT1sDlpO30xW2VP5u1ESQxw3NRWcRlCW9IaLOqrHJszR6cCRTEZDN0ia7lNL+lBs4yBJ/gL4GM8fxwQAAA==
+          B64END
+          base64 -d /tmp/p1.b64 | gunzip > /tmp/p1.py
+          base64 -d /tmp/p2.b64 | gunzip > /tmp/p2.py
+          python3 /tmp/p1.py app/src/main/java/com/aimai/max/assistant/ShotSearch.java
+          python3 /tmp/p2.py app/src/main/java/com/aimai/max/assistant/CarromShotPlanner.java
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Shot choice: realistic-error check, no near-contact shots, thin-cut penalty"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
