@@ -1,0 +1,190 @@
+name: Apply AimAi Max joined buttons and my-turn only
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix21*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Joined floating buttons, no lines on the other player's turn, no swipe buttons
+        run: |
+          python3 - <<'PYEND'
+          import base64
+          def dec(s):
+              return base64.b64decode("".join(s.split())).decode("utf-8")
+          chip_methods = dec("""
+          ICAgIHByaXZhdGUgdm9pZCByZWZyZXNoQXV0b0NoaXAoKSB7CiAgICAgICAgaWYgKGF1dG9DaGlwID09IG51bGwpIHJldHVybjsK
+          ICAgICAgICBhdXRvQ2hpcC5zZXRCYWNrZ3JvdW5kKHNoYXBlKENvbG9yLnJnYigxMiwgMTMsIDE4KSwgMTApKTsKICAgICAgICBp
+          ZiAoYXV0b0RvdCAhPSBudWxsKSB7CiAgICAgICAgICAgIEdyYWRpZW50RHJhd2FibGUgcmluZyA9IHNoYXBlKGF1dG9QbGF5ID8g
+          Q29sb3IucmdiKDI0LCA3MCwgNTApIDogQ29sb3IucmdiKDM0LCAzNiwgNDYpLCAxNSk7CiAgICAgICAgICAgIHJpbmcuc2V0U3Ry
+          b2tlKGRwKDEpLCBhdXRvUGxheSA/IENvbG9yLnJnYig3MCwgMjMwLCAxNDApIDogQ29sb3IucmdiKDExMCwgMTE0LCAxMzApKTsK
+          ICAgICAgICAgICAgYXV0b0RvdC5zZXRCYWNrZ3JvdW5kKHJpbmcpOwogICAgICAgIH0KICAgICAgICBpZiAoYXV0b1N5bWJvbCAh
+          PSBudWxsKSBhdXRvU3ltYm9sLnNldFRleHQoYXV0b1BsYXkgPyAiSUkiIDogIlx1MjVCNiIpOwogICAgfQoKICAgIC8qKgogICAg
+          ICogVGhlIEF1dG8gYnV0dG9uIHNpdHMgb24gdG9wIG9mIHRoZSBsb2dvIGJ1dHRvbjsgYm90aCBhcmUgb25lIHdpbmRvdywgc28g
+          dGhleSBtb3ZlIHRvZ2V0aGVyLgogICAgICogVGFwID0gc3RhcnQgb3Igc3RvcCBBdXRvIFBsYXksIGRyYWcgPSBtb3ZlIGJvdGgu
+          CiAgICAgKi8KICAgIHByaXZhdGUgdm9pZCBidWlsZEF1dG9DaGlwKGZpbmFsIFdpbmRvd01hbmFnZXIuTGF5b3V0UGFyYW1zIGRv
+          Y2tQYXJhbXMpIHsKICAgICAgICBhdXRvQ2hpcCA9IG5ldyBMaW5lYXJMYXlvdXQodGhpcyk7CiAgICAgICAgYXV0b0NoaXAuc2V0
+          R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAgICAgYXV0b1N5bWJvbCA9IGxhYmVsKCJcdTI1QjYiLCAxMiwgQ29sb3IuV0hJ
+          VEUsIHRydWUpOwogICAgICAgIGF1dG9TeW1ib2wuc2V0R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAgICAgYXV0b0RvdCA9
+          IGF1dG9TeW1ib2w7CiAgICAgICAgYXV0b0NoaXAuYWRkVmlldyhhdXRvU3ltYm9sLCBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBh
+          cmFtcyhkcCgzMCksIGRwKDMwKSkpOwogICAgICAgIHJlZnJlc2hBdXRvQ2hpcCgpOwogICAgICAgIGF1dG9DaGlwLnNldE9uVG91
+          Y2hMaXN0ZW5lcihuZXcgVmlldy5PblRvdWNoTGlzdGVuZXIoKSB7CiAgICAgICAgICAgIHByaXZhdGUgaW50IHN0YXJ0WCwgc3Rh
+          cnRZOwogICAgICAgICAgICBwcml2YXRlIGZsb2F0IHRvdWNoWCwgdG91Y2hZOwogICAgICAgICAgICBwcml2YXRlIGJvb2xlYW4g
+          bW92ZWQ7CiAgICAgICAgICAgIHB1YmxpYyBib29sZWFuIG9uVG91Y2goVmlldyB2aWV3LCBNb3Rpb25FdmVudCBldmVudCkgewog
+          ICAgICAgICAgICAgICAgaWYgKGV2ZW50LmdldEFjdGlvbigpID09IE1vdGlvbkV2ZW50LkFDVElPTl9ET1dOKSB7CiAgICAgICAg
+          ICAgICAgICAgICAgc3RhcnRYID0gZG9ja1BhcmFtcy54OwogICAgICAgICAgICAgICAgICAgIHN0YXJ0WSA9IGRvY2tQYXJhbXMu
+          eTsKICAgICAgICAgICAgICAgICAgICB0b3VjaFggPSBldmVudC5nZXRSYXdYKCk7CiAgICAgICAgICAgICAgICAgICAgdG91Y2hZ
+          ID0gZXZlbnQuZ2V0UmF3WSgpOwogICAgICAgICAgICAgICAgICAgIG1vdmVkID0gZmFsc2U7CiAgICAgICAgICAgICAgICAgICAg
+          cmV0dXJuIHRydWU7CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBpZiAoZXZlbnQuZ2V0QWN0aW9uKCkgPT0gTW90
+          aW9uRXZlbnQuQUNUSU9OX01PVkUpIHsKICAgICAgICAgICAgICAgICAgICBpbnQgZHggPSAoaW50KSAoZXZlbnQuZ2V0UmF3WCgp
+          IC0gdG91Y2hYKTsKICAgICAgICAgICAgICAgICAgICBpbnQgZHkgPSAoaW50KSAoZXZlbnQuZ2V0UmF3WSgpIC0gdG91Y2hZKTsK
+          ICAgICAgICAgICAgICAgICAgICBpZiAoTWF0aC5hYnMoZHgpICsgTWF0aC5hYnMoZHkpID4gZHAoNikpIG1vdmVkID0gdHJ1ZTsK
+          ICAgICAgICAgICAgICAgICAgICBkb2NrUGFyYW1zLnggPSBNYXRoLm1heCgwLCBzdGFydFggLSBkeCk7CiAgICAgICAgICAgICAg
+          ICAgICAgZG9ja1BhcmFtcy55ID0gTWF0aC5tYXgoMCwgc3RhcnRZICsgZHkpOwogICAgICAgICAgICAgICAgICAgIGlmIChkb2Nr
+          ICE9IG51bGwpIHdpbmRvd01hbmFnZXIudXBkYXRlVmlld0xheW91dChkb2NrLCBkb2NrUGFyYW1zKTsKICAgICAgICAgICAgICAg
+          ICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGlmIChldmVudC5nZXRBY3Rpb24oKSA9
+          PSBNb3Rpb25FdmVudC5BQ1RJT05fVVApIHsKICAgICAgICAgICAgICAgICAgICBpZiAoIW1vdmVkKSBzZXRBdXRvUGxheSghYXV0
+          b1BsYXkpOwogICAgICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAg
+          cmV0dXJuIHRydWU7CiAgICAgICAgICAgIH0KICAgICAgICB9KTsKICAgIH0KCg==
+          """)
+          turn_method = dec("""
+          ICAgIC8qKgogICAgICogSXQgaXMgbXkgdHVybiBvbmx5IHdoZW4gdGhlIHN0cmlrZXIgc2xpZGVyIHVuZGVyIHRoZSBib2FyZCBp
+          cyBicmlnaHQgd29vZCBjb2xvdXJlZC4gT24gdGhlIG90aGVyCiAgICAgKiBwbGF5ZXIncyB0dXJuIHRoZSBnYW1lIGRpbXMgaXQg
+          KGRhcmsgcHVycGxlKSwgYW5kIG5vIGxpbmVzIG11c3QgYmUgZHJhd24gYW5kIG5vIHNob3QgdGFrZW4gdGhlbi4KICAgICAqLwog
+          ICAgcHJpdmF0ZSBzdGF0aWMgYm9vbGVhbiBpc015VHVybihCaXRtYXAgYm1wLCBDYXJyb21Cb2FyZEFuYWx5emVyLkFuYWx5c2lz
+          IGEpIHsKICAgICAgICBpbnQgdyA9IGJtcC5nZXRXaWR0aCgpOwogICAgICAgIGludCBoID0gYm1wLmdldEhlaWdodCgpOwogICAg
+          ICAgIGZsb2F0IGJhc2UgPSBNYXRoLm1pbihhLmJvYXJkLndpZHRoKCksIGEuYm9hcmQuaGVpZ2h0KCkpOwogICAgICAgIGludCBj
+          eSA9IE1hdGgucm91bmQoYS5ib2FyZC5ib3R0b20gKyAwLjM2ZiAqIGJhc2UpOwogICAgICAgIGludCB4MCA9IE1hdGgucm91bmQo
+          MC4yMmYgKiB3KTsKICAgICAgICBpbnQgeDEgPSBNYXRoLnJvdW5kKDAuNzhmICogdyk7CiAgICAgICAgaW50IG4gPSBNYXRoLm1h
+          eCgxLCAoeDEgLSB4MCkgLyA0ICsgMSk7CiAgICAgICAgZm9yIChpbnQgeSA9IGN5IC0gMTY7IHkgPD0gY3kgKyAxNjsgeSArPSAy
+          KSB7CiAgICAgICAgICAgIGlmICh5IDwgMCB8fCB5ID49IGgpIGNvbnRpbnVlOwogICAgICAgICAgICBpbnRbXSBycyA9IG5ldyBp
+          bnRbbl07CiAgICAgICAgICAgIGludFtdIGdzID0gbmV3IGludFtuXTsKICAgICAgICAgICAgaW50IGMgPSAwOwogICAgICAgICAg
+          ICBmb3IgKGludCB4ID0geDA7IHggPCB4MSAmJiBjIDwgbjsgeCArPSA0KSB7CiAgICAgICAgICAgICAgICBpbnQgcHggPSBibXAu
+          Z2V0UGl4ZWwoeCwgeSk7CiAgICAgICAgICAgICAgICByc1tjXSA9IENvbG9yLnJlZChweCk7CiAgICAgICAgICAgICAgICBnc1tj
+          XSA9IENvbG9yLmdyZWVuKHB4KTsKICAgICAgICAgICAgICAgIGMrKzsKICAgICAgICAgICAgfQogICAgICAgICAgICBqYXZhLnV0
+          aWwuQXJyYXlzLnNvcnQocnMsIDAsIGMpOwogICAgICAgICAgICBqYXZhLnV0aWwuQXJyYXlzLnNvcnQoZ3MsIDAsIGMpOwogICAg
+          ICAgICAgICBpZiAoYyA+IDAgJiYgcnNbYyAvIDJdID4gMTUwICYmIGdzW2MgLyAyXSA+IDg1KSByZXR1cm4gdHJ1ZTsKICAgICAg
+          ICB9CiAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgfQoK
+          """)
+
+          d = "app/src/main/java/com/aimai/max/assistant/"
+          ov_path = d + "AssistantOverlayService.java"
+          sp_path = d + "ScanPipeline.java"
+          ov = open(ov_path, encoding="utf-8").read()
+          sp = open(sp_path, encoding="utf-8").read()
+
+          if "buildAutoChip(bubbleParams)" in ov:
+              print("already applied")
+              raise SystemExit(0)
+
+          dock_code = (
+              "        dock = new LinearLayout(this);\n"
+              "        dock.setOrientation(LinearLayout.VERTICAL);\n"
+              "        dock.setGravity(Gravity.CENTER_HORIZONTAL);\n"
+              "        buildAutoChip(bubbleParams);\n"
+              "        dock.addView(autoChip, new LinearLayout.LayoutParams(dp(46), dp(40)));\n"
+              "        LinearLayout.LayoutParams bubbleLp = new LinearLayout.LayoutParams(dp(46), dp(46));\n"
+              "        bubbleLp.topMargin = dp(2);\n"
+              "        dock.addView(bubble, bubbleLp);\n"
+              "        windowManager.addView(dock, bubbleParams);\n"
+          )
+
+          # plain replacements: (old, new, times)
+          ov_pairs = [
+              ("    private LinearLayout autoChip;\n    private View autoDot;\n",
+               "    private LinearLayout autoChip;\n    private View autoDot;\n    private LinearLayout dock;\n    private TextView autoSymbol;\n", 1),
+              ("                dp(54), dp(54),\n",
+               "                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,\n", 1),
+              ("        windowManager.addView(bubble, bubbleParams);\n", dock_code, 1),
+              ("if (bubble != null) windowManager.updateViewLayout(bubble, bubbleParams);",
+               "if (dock != null) windowManager.updateViewLayout(dock, bubbleParams);", 1),
+              ("        windowManager.addView(panel, params);\n        buildAutoChip();\n        applyGameVisibility();\n",
+               "        windowManager.addView(panel, params);\n        applyGameVisibility();\n", 1),
+              ("        if (autoChip != null) autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);\n",
+               "        if (dock != null) dock.setVisibility(gameForeground ? View.VISIBLE : View.GONE);\n", 1),
+              ("        if (autoChip != null) autoChip.setVisibility(View.GONE);\n",
+               "        if (dock != null) dock.setVisibility(View.GONE);\n", 1),
+              ("        if (autoChip != null) autoChip.setVisibility(View.VISIBLE);\n",
+               "        if (dock != null) dock.setVisibility(View.VISIBLE);\n", 1),
+              ("        if (autoChip != null && windowManager != null) {\n"
+               "            try { windowManager.removeView(autoChip); } catch (IllegalArgumentException ignored) {}\n"
+               "            autoChip = null;\n"
+               "        }\n",
+               "        if (dock != null && windowManager != null) {\n"
+               "            try { windowManager.removeView(dock); } catch (IllegalArgumentException ignored) {}\n"
+               "            dock = null;\n"
+               "            autoChip = null;\n"
+               "        }\n", 1),
+              ("bubble.setBackground(shape(accent, 28));", "bubble.setBackground(shape(accent, 10));", 2),
+              ('"PULL".equals(settings().getString("swipe_mode", "FORWARD"))', "true", 1),
+          ]
+          for old, new, times in ov_pairs:
+              found = ov.count(old)
+              assert found == times, "overlay: anchor found " + str(found) + " times (need " + str(times) + "), nothing changed: " + old[:80]
+
+          # slices
+          a = ov.find("    private void refreshAutoChip() {\n")
+          b = ov.find("    private void createPanel() {\n")
+          assert a > 0 and b > a, "chip methods not found, nothing changed"
+          s_start = '        col.addView(sectionTitle("SWIPE DIRECTION"));\n'
+          s_end = '        col.addView(sectionTitle("POWER"));\n'
+          assert ov.count(s_start) == 1 and ov.count(s_end) == 1 and ov.find(s_start) < ov.find(s_end), \
+              "swipe buttons block not found, nothing changed"
+
+          # pipeline
+          sp_pairs = [
+              ("    private static float[] normalizePaths(float[] raw, float fw, float fh) {\n",
+               turn_method + "    private static float[] normalizePaths(float[] raw, float fw, float fh) {\n", 1),
+              ("        if (striker != null && result.board.detected) {\n            markMine(ctx, bmp, result);\n",
+               "        boolean myTurn = result.board.detected && isMyTurn(bmp, result);\n"
+               "        if (striker != null && result.board.detected && myTurn) {\n            markMine(ctx, bmp, result);\n", 1),
+          ]
+          for old, new, times in sp_pairs:
+              found = sp.count(old)
+              assert found == times, "pipeline: anchor found " + str(found) + " times (need " + str(times) + "), nothing changed: " + old[:80]
+
+          # all anchors are there: now change
+          ov = ov[:a] + chip_methods + ov[b:]
+          i = ov.find(s_start)
+          j = ov.find(s_end)
+          ov = ov[:i] + ov[j:]
+          for old, new, times in ov_pairs:
+              ov = ov.replace(old, new)
+          for old, new, times in sp_pairs:
+              sp = sp.replace(old, new)
+          open(ov_path, "w", encoding="utf-8").write(ov)
+          open(sp_path, "w", encoding="utf-8").write(sp)
+          print("edited overlay and pipeline")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Joined floating buttons, lines only on my turn, swipe buttons removed"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
