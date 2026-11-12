@@ -24,6 +24,9 @@ public class ScanPipeline {
     private List<float[]> previousPieces = new ArrayList<>();
     private CarromBoardAnalyzer.Analysis lastGood;
     private long lastGoodAt = 0L;
+    // red coin cover: if my red coin went in with my last shot, the next shot must cover it
+    private boolean wasMyTurn = false, queenBeforeShot = false, queenOnLastTurn = false, coverPending = false;
+    private long dimAt = 0L;
 
     public void reset() {
         stableFrameCount = 0;
@@ -244,12 +247,28 @@ public class ScanPipeline {
         Intent guideIntent = new Intent("com.aimai.max.GUTI_GUIDE_DATA");
         guideIntent.setPackage(ctx.getPackageName());
         guideIntent.putExtra("boardStable", stableFrameCount >= 2);
-        guideIntent.putExtra("boardSteady", looseFrameCount >= 2);
+        guideIntent.putExtra("boardSteady", looseFrameCount >= 1);
         guideIntent.putExtra("strikerCount", strikerCount);
         guideIntent.putExtra("gutiCount", coinCount);
 
         CarromBoardAnalyzer.Piece striker = result.striker;
         boolean myTurn = result.board.detected && isMyTurn(bmp, result);
+        boolean queenNow = false;
+        for (CarromBoardAnalyzer.Piece qp : result.pieces) {
+            if (qp.type == CarromBoardAnalyzer.PieceType.QUEEN) { queenNow = true; break; }
+        }
+        boolean turnNow = myTurn && striker != null;
+        long clock = android.os.SystemClock.elapsedRealtime();
+        if (turnNow && !wasMyTurn) {
+            if (queenBeforeShot && !queenNow && clock - dimAt < 4500L) coverPending = true;
+        } else if (!turnNow && wasMyTurn) {
+            dimAt = clock;
+            queenBeforeShot = queenOnLastTurn;
+            coverPending = false;
+        }
+        if (turnNow) queenOnLastTurn = queenNow;
+        wasMyTurn = turnNow;
+        ShotSearch.coverMode = coverPending;
         if (striker != null && result.board.detected && myTurn) {
             markMine(ctx, bmp, result);
             boolean slideOn = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
@@ -261,8 +280,10 @@ public class ScanPipeline {
                 cur = cacheCur;
                 best = cacheBest;
             } else if (looseFrameCount >= 1) {
-                cur = ShotSearch.search(result, false, false, 260L, 24);
-                best = slideOn ? ShotSearch.search(result, false, true, 380L, 24) : null;
+                cur = ShotSearch.search(result, false, false, 110L, 24);
+                // slide the striker only when the current spot has no clean potting shot (keeps the turn under a second)
+                boolean needSlide = cur.best == null || !cur.best.potsSomething || cur.best.simScore < 60f;
+                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 170L, 24) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;

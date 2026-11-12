@@ -17,7 +17,7 @@ import android.view.accessibility.AccessibilityEvent;
 public class AimAiGestureService extends AccessibilityService {
     private static final String TAG = "AimAiAutoPlay";
     private static final String GAME_PACKAGE = "com.miniclip.carrom";
-    private static final long SCAN_INTERVAL_MS = 450L;
+    private static final long SCAN_INTERVAL_MS = 340L;
     /** In the lobby and menus there is no board, so scanning that often only slows the game down. */
     private static final long IDLE_SCAN_INTERVAL_MS = 450L;
 
@@ -260,7 +260,7 @@ public class AimAiGestureService extends AccessibilityService {
         path.moveTo(fx, fy);
         path.lineTo(tx, fy);
         GestureDescription g = new GestureDescription.Builder()
-                .addStroke(new GestureDescription.StrokeDescription(path, 0, 240)).build();
+                .addStroke(new GestureDescription.StrokeDescription(path, 0, 150)).build();
         boolean ok = s.dispatchGesture(g, null, null);
         Log.i(TAG, "dragSlider accepted=" + ok + " from=" + fx + " to=" + tx + " y=" + fy);
         return ok;

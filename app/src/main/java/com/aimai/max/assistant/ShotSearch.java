@@ -21,8 +21,10 @@ public final class ShotSearch {
 
     private ShotSearch() {}
 
-    public static final float[] SPEEDS = {14f, 20f, 28f};
-    public static final float[] STRENGTH = {0.30f, 0.60f, 1.00f};
+    public static final float[] SPEEDS = {18f, 23f, 28f};
+    public static final float[] STRENGTH = {0.50f, 0.75f, 1.00f};
+    /** True right after my red coin went in: the next shot must be a safe, direct pot that covers it. */
+    public static volatile boolean coverMode = false;
 
     public static final class Outcome {
         public Shot shot;
@@ -80,7 +82,8 @@ public final class ShotSearch {
             if (bd.owner == CarromSim.MINE) mineLeft++;
             else if (bd.owner == CarromSim.QUEEN) queenOn = true;
         }
-        float queenW = (queenOn && mineLeft <= 2) ? 300f : 60f;
+        // The red coin goes first, early: while there are still plenty of my coins left.
+        float queenW = queenOn ? (mineLeft <= 2 ? 300f : 260f) : 60f;
 
         float[] px = new float[4], py = new float[4];
         float pr = 0f;
@@ -90,6 +93,50 @@ public final class ShotSearch {
             pr += a.pockets.get(i).radius / 4f;
         }
         float L = a.board.left, T = a.board.top, R = a.board.right, B = a.board.bottom;
+
+        // Opening rack: the simulator cannot predict a full rack, so break straight into its middle at full power.
+        if (a.pieces.size() >= 18) {
+            float bcx = (L + R) / 2f, bcy = (T + B) / 2f;
+            Piece mid = null;
+            float midD = 1e9f, maxD = 0f;
+            for (Piece p : a.pieces) {
+                if (p == s0 || p.type == PieceType.STRIKER) continue;
+                float dd = (float) Math.hypot(p.x - bcx, p.y - bcy);
+                if (dd < midD) { midD = dd; mid = p; }
+                if (dd > maxD) maxD = dd;
+            }
+            if (mid != null && maxD < 0.22f * (R - L)) {
+                strikerDisc.x = s0.x;
+                strikerDisc.y = s0.y;
+                float bdx = mid.x - s0.x, bdy = mid.y - s0.y;
+                float blen = (float) Math.sqrt(bdx * bdx + bdy * bdy);
+                if (blen > 1f) {
+                    CarromSim.Result br = CarromSim.run(base, si, bdx / blen, bdy / blen, SPEEDS[2], L, T, R, B, px, py, pr, false);
+                    if (!br.strikerPotted && br.strikerMinPocket > pr * 2.4f) {
+                        Shot bs = new Shot();
+                        bs.valid = true;
+                        bs.kind = 0;
+                        bs.target = mid;
+                        bs.pocket = a.pockets.get(0);
+                        bs.strikerX = s0.x;
+                        bs.strikerY = s0.y;
+                        bs.aimX = mid.x;
+                        bs.aimY = mid.y;
+                        bs.ghostX = mid.x;
+                        bs.ghostY = mid.y;
+                        bs.power = 1f;
+                        Outcome bo = new Outcome();
+                        bo.shot = bs;
+                        bo.level = 2;
+                        bo.potsSomething = false;
+                        bo.paths = record(base, si, bo, L, T, R, B, px, py, pr);
+                        result.best = bo;
+                        result.tried++;
+                        return result;
+                    }
+                }
+            }
+        }
 
         List<Outcome> outcomes = new ArrayList<>();
         for (Shot cand : cands) {
@@ -111,10 +158,10 @@ public final class ShotSearch {
                 CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);
                 boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.4f;
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
-                        - ((nearStrikerPocket || fastRisk) ? 400f : 0f)
+                        - ((nearStrikerPocket || fastRisk) ? 1500f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
-                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg - 2f * level
-                        - 45f * cand.blockers - (cand.kind != 0 ? 35f : 0f);
+                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg + 3f * level
+                        - 45f * cand.blockers - (cand.kind != 0 ? (coverMode ? 120f : 35f) : 0f);
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
@@ -156,14 +203,14 @@ public final class ShotSearch {
 
         // The real game is never pixel perfect. Re-check the best few shots with the aim a little off and the
         // power a little different: a shot that still pots then beats one that only works exactly.
-        int robustCount = Math.min(10, outcomes.size());
+        int robustCount = Math.min(6, outcomes.size());
         long robustStart = android.os.SystemClock.elapsedRealtime();
         for (int ri = 0; ri < robustCount; ri++) {
-            if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 250L) break;
+            if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 120L) break;
             Outcome ro = outcomes.get(ri);
             if (!ro.potsSomething) continue;
             float frac = robustFraction(base, si, ro, L, T, R, B, px, py, pr);
-            ro.simScore += 240f * frac - 160f;
+            ro.simScore += (coverMode ? 1.5f : 1f) * (240f * frac - 160f);
         }
         Collections.sort(outcomes, new Comparator<Outcome>() {
             @Override public int compare(Outcome x, Outcome y) { return Float.compare(y.simScore, x.simScore); }
@@ -195,7 +242,7 @@ public final class ShotSearch {
         float w = R - L;
         float nTrue = 0.006f * w, nDet = 0.004f * w, nAim = 0.006f * w;
         long seed = 12345L;
-        int good = 0, total = 20;
+        int good = 0, total = 12;
         for (int k = 0; k < total; k++) {
             float[] u = new float[7];
             for (int j = 0; j < 7; j++) {

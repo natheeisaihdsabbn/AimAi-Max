@@ -34,7 +34,7 @@ public class AssistantOverlayService extends Service {
     /** If the board never reports a change after a shot, allow a retry after this long. */
     private static final long SETTLE_TIMEOUT_MS = 10000L;
     /** Wait this long after sliding the striker before looking at the board again. */
-    private static final long SLIDER_GAP_MS = 800L;
+    private static final long SLIDER_GAP_MS = 450L;
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
@@ -159,7 +159,7 @@ public class AssistantOverlayService extends Service {
                     boolean pullBack = true;
                     float powerMul = settings().getInt("power_pct", 100) / 100f;
                     AimAiGestureService.swipeDurationMs = humanStyle()
-                            ? 480 + (int) (Math.random() * 220) : 260;
+                            ? 480 + (int) (Math.random() * 220) : 150;
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, aimX * sw, aimY * sh, sw, sh,
                             intent.getFloatExtra(curFound ? "curPower" : "bestPower", 0.8f), pullBack, powerMul)) {
                         waitingForSettle = true;
