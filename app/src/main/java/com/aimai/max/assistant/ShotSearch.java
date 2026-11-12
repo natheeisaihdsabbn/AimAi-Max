@@ -50,9 +50,17 @@ public final class ShotSearch {
         long started = android.os.SystemClock.elapsedRealtime();
         List<Shot> all = CarromShotPlanner.planAll(a, anyCoin, slide);
         List<Shot> cands = CarromShotPlanner.distinctTop(all, maxCands);
+        // Queen-cover turn: only consider a confirmed own coin as the target.
+        if (coverMode) {
+            List<Shot> coverCands = new ArrayList<>();
+            for (Shot shot : cands) {
+                if (shot.target != null && shot.target.mine && shot.target.type != PieceType.QUEEN) coverCands.add(shot);
+            }
+            cands = coverCands;
+        }
         if (cands.isEmpty()) {
             Shot fb = CarromShotPlanner.best(a, all, anyCoin);
-            if (!fb.valid) return result;
+            if (!fb.valid || (coverMode && (fb.target == null || !fb.target.mine || fb.target.type == PieceType.QUEEN))) return result;
             cands.add(fb);
         }
 
@@ -157,7 +165,8 @@ public final class ShotSearch {
                 // the real striker rolls further than the simulated one, so the same shot is also tried 35 percent harder
                 CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);
                 boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.4f;
-                float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
+                if (coverMode && r.minePotted == 0) continue;
+                float score = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 120f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 1500f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
                         - 0.02f * cand.score - 0.6f * cand.cutAngleDeg + (cand.cutAngleDeg > 30f ? 9f : 3f) * level
@@ -185,12 +194,12 @@ public final class ShotSearch {
                 if (len < 1f) continue;
                 CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[0], L, T, R, B, px, py, pr, false);
                 result.tried++;
-                if (r.strikerPotted) continue;
+                if (r.strikerPotted || (coverMode && r.minePotted == 0)) continue;
                 Outcome o = new Outcome();
                 o.shot = cand;
                 o.level = 0;
-                o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted;
-                o.potsSomething = r.minePotted + r.queenPotted > 0;
+                o.simScore = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 120f * r.otherPotted;
+                o.potsSomething = coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0;
                 outcomes.add(o);
                 break;
             }
@@ -258,7 +267,7 @@ public final class ShotSearch {
             float pw = 1f + 0.12f * u[6];
             CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[o.level] * pw, L, T, R, B, px, py, pr, false);
             if (!r.strikerPotted && r.strikerMinPocket > pr * 2.4f
-                    && r.minePotted + r.queenPotted > 0 && r.otherPotted == 0) good++;
+                    && (coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0) && r.otherPotted == 0) good++;
         }
         return good / (float) total;
     }
