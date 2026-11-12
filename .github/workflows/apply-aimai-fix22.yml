@@ -1,0 +1,101 @@
+name: Apply AimAi Max one-second turn and own-coins-only
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix22*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Shoot within about a second, never pot the other player's coins, cover with my own coin
+        run: |
+          python3 - <<'PYEND'
+          import re
+          d = "app/src/main/java/com/aimai/max/assistant/"
+
+          def read(n):
+              return open(d + n, encoding="utf-8").read()
+
+          sp = read("ScanPipeline.java")
+          gs = read("AimAiGestureService.java")
+          ss = read("ShotSearch.java")
+
+          if "coinsOnly" in sp:
+              print("already applied")
+              raise SystemExit(0)
+
+          sp_pairs = [
+              ("        boolean strictSame = samePositions(previousPieces, result.pieces, tol);\n"
+               "        boolean looseSame = strictSame || mostlySame(previousPieces, result.pieces, tol * 1.5f);\n",
+               "        // Only the coins decide whether the board has stopped: the striker appearing when my turn starts\n"
+               "        // must not restart the wait.\n"
+               "        List<CarromBoardAnalyzer.Piece> coinsOnly = new ArrayList<>();\n"
+               "        for (CarromBoardAnalyzer.Piece cp : result.pieces) {\n"
+               "            if (cp != result.striker && cp.type != CarromBoardAnalyzer.PieceType.STRIKER) coinsOnly.add(cp);\n"
+               "        }\n"
+               "        boolean strictSame = samePositions(previousPieces, coinsOnly, tol);\n"
+               "        boolean looseSame = strictSame || mostlySame(previousPieces, coinsOnly, tol * 1.5f);\n", 1),
+              ("            for (CarromBoardAnalyzer.Piece p : result.pieces) copy.add(new float[]{p.x, p.y});\n",
+               "            for (CarromBoardAnalyzer.Piece p : coinsOnly) copy.add(new float[]{p.x, p.y});\n", 1),
+              ('                    .getBoolean("slide_enabled", true);\n',
+               '                    .getBoolean("slide_enabled", true) && false; // sliding costs more than a second: off\n', 1),
+          ]
+          for old, new, times in sp_pairs:
+              assert sp.count(old) == times, "ScanPipeline: anchor found " + str(sp.count(old)) + " times, nothing changed: " + old[:80]
+
+          assert len(re.findall(r"SCAN_INTERVAL_MS\s*=\s*\d+L", gs)) == 1, "scan interval not found once, nothing changed"
+
+          ss_pairs = [
+              ("120f * r.otherPotted", "400f * r.otherPotted", 2),
+              ("                        - (r.strikerPotted ? 2000f : 0f)\n",
+               "                        - (r.strikerPotted ? 2000f : 0f)\n"
+               "                        - ((coverMode && r.minePotted == 0) ? 500f : 0f)\n", 1),
+              ("r.minePotted + r.queenPotted > 0 && r.otherPotted == 0",
+               "(coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0) && r.otherPotted == 0", 1),
+              ("bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted;",
+               "bestForShot.potsSomething = (coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0) && !r.strikerPotted;", 1),
+          ]
+          for old, new, times in ss_pairs:
+              assert ss.count(old) == times, "ShotSearch: anchor found " + str(ss.count(old)) + " times, nothing changed: " + old[:80]
+
+          for old, new, times in sp_pairs:
+              sp = sp.replace(old, new)
+          gs = re.sub(r"(SCAN_INTERVAL_MS\s*=\s*)\d+L", r"\g<1>140L", gs)
+          for old, new, times in ss_pairs:
+              ss = ss.replace(old, new)
+          open(d + "ScanPipeline.java", "w", encoding="utf-8").write(sp)
+          open(d + "AimAiGestureService.java", "w", encoding="utf-8").write(gs)
+          open(d + "ShotSearch.java", "w", encoding="utf-8").write(ss)
+          print("edited ScanPipeline, AimAiGestureService, ShotSearch")
+          PYEND
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "One-second turn: no sliding, striker ignored in steady check, faster scans; never pot the other player's coins"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
