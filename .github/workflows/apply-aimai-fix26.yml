@@ -1,0 +1,71 @@
+name: Apply AimAi Max red cover from game icon, no line flicker, faster turn
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix26*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Red cover from the game icon, drawn lines ignored by the scan, steadier striker slide
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          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
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Red cover read from the game icon, own drawing ignored by the scan, steadier slide"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
