@@ -1,0 +1,79 @@
+name: Apply AimAi Max one-second turn, opening break, red coin cover, stronger power
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix25*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Faster turn, opening break, red coin first and covered, stronger power, striker foul guard
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          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
+          +l85I3EzNhwAAA==
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "One-second turn, opening break, red coin first and covered, stronger power, striker foul guard"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
