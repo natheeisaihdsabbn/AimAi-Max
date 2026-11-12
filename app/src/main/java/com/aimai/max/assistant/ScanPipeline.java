@@ -28,6 +28,31 @@ public class ScanPipeline {
     private boolean wasMyTurn = false, queenBeforeShot = false, queenOnLastTurn = false, coverPending = false;
     private long dimAt = 0L;
 
+    /** True while the game shows the little red coin icon next to my coin icon (red still to be covered). */
+    private static boolean redPendingIcon(Bitmap bmp) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int cx = Math.round(0.174f * w), cy = Math.round(0.161f * h);
+        int r = Math.max(2, Math.round(0.012f * w));
+        int[] rs = new int[25], gs = new int[25], bs = new int[25];
+        int n = 0;
+        for (int dy = -2; dy <= 2; dy++) {
+            for (int dx = -2; dx <= 2; dx++) {
+                int x = Math.max(0, Math.min(w - 1, cx + dx * r / 2));
+                int y = Math.max(0, Math.min(h - 1, cy + dy * r / 2));
+                int c = bmp.getPixel(x, y);
+                rs[n] = Color.red(c);
+                gs[n] = Color.green(c);
+                bs[n] = Color.blue(c);
+                n++;
+            }
+        }
+        java.util.Arrays.sort(rs, 0, n);
+        java.util.Arrays.sort(gs, 0, n);
+        java.util.Arrays.sort(bs, 0, n);
+        int mr = rs[n / 2], mg = gs[n / 2], mb = bs[n / 2];
+        return mr > 105 && mr - mg > 70 && mr - mb > 25;
+    }
+
     public void reset() {
         stableFrameCount = 0;
         looseFrameCount = 0;
@@ -248,6 +273,7 @@ public class ScanPipeline {
         guideIntent.setPackage(ctx.getPackageName());
         guideIntent.putExtra("boardStable", stableFrameCount >= 2);
         guideIntent.putExtra("boardSteady", looseFrameCount >= 1);
+        guideIntent.putExtra("cover", coverPending);
         guideIntent.putExtra("strikerCount", strikerCount);
         guideIntent.putExtra("gutiCount", coinCount);
 
@@ -268,6 +294,7 @@ public class ScanPipeline {
         }
         if (turnNow) queenOnLastTurn = queenNow;
         wasMyTurn = turnNow;
+        coverPending = result.board.detected && redPendingIcon(bmp);
         ShotSearch.coverMode = coverPending;
         if (striker != null && result.board.detected && myTurn) {
             markMine(ctx, bmp, result);
@@ -279,7 +306,7 @@ public class ScanPipeline {
             if (cacheCur != null) {
                 cur = cacheCur;
                 best = cacheBest;
-            } else if (looseFrameCount >= 1) {
+            } else if (looseFrameCount >= 0) {
                 cur = ShotSearch.search(result, false, false, 110L, 24);
                 // slide the striker only when the current spot has no clean potting shot (keeps the turn under a second)
                 boolean needSlide = cur.best == null || !cur.best.potsSomething || cur.best.simScore < 60f;

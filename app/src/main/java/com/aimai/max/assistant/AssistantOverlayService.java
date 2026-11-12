@@ -34,7 +34,7 @@ public class AssistantOverlayService extends Service {
     /** If the board never reports a change after a shot, allow a retry after this long. */
     private static final long SETTLE_TIMEOUT_MS = 10000L;
     /** Wait this long after sliding the striker before looking at the board again. */
-    private static final long SLIDER_GAP_MS = 450L;
+    private static final long SLIDER_GAP_MS = 650L;
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
@@ -54,6 +54,7 @@ public class AssistantOverlayService extends Service {
     private float lastAutoStrikerX = -1f, lastAutoStrikerY = -1f;
     private long lastSliderAt = 0L;
     private int sliderTries = 0;
+    private long coverSince = 0L;
     private android.content.SharedPreferences.OnSharedPreferenceChangeListener liveGuidePreferencesListener;
 
     private boolean boardReceiverRegistered = false;
@@ -123,7 +124,7 @@ public class AssistantOverlayService extends Service {
 
             // Slide the striker only when another spot is clearly better, and only twice per shot.
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
-            boolean wantSlide = slideOn && bestFound && sliderTries < 3 && Math.abs(bestX - x) > 0.015f
+            boolean wantSlide = slideOn && bestFound && sliderTries < 2 && Math.abs(bestX - x) > 0.015f
                     && (!curFound || bestScore > curScore + 90f);
 
             // Draw the shot that will be played: the simulated path of the striker and every coin it moves,
@@ -141,7 +142,16 @@ public class AssistantOverlayService extends Service {
                 aimGuideView.setGuideEnabled(false);
             }
 
-            if (autoPlay && !waitingForSettle && boardSteady && (curFound || bestFound)
+            boolean cover = intent.getBooleanExtra("cover", false);
+            if (cover) {
+                if (coverSince == 0L) coverSince = now;
+            } else {
+                coverSince = 0L;
+            }
+            boolean hasPot = curFound ? intent.getBooleanExtra("curPots", false) : intent.getBooleanExtra("bestPots", false);
+            // Covering the red coin: never fire a shot that cannot pot while a better spot may still be found (8 s at most)
+            boolean coverHold = cover && !hasPot && !wantSlide && now - coverSince < 8000L;
+            if (autoPlay && !coverHold && !waitingForSettle && boardSteady && (curFound || bestFound)
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
                 int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);

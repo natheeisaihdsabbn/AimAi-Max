@@ -112,7 +112,9 @@ public final class CarromBoardAnalyzer {
         if (s > 0.50f && v > 0.35f && hh > 60f && hh < 350f) f |= F_COLOR;
         boolean wood = hh >= 15f && hh <= 55f && s >= 0.20f && s <= 0.80f && v > 0.45f;
         if (wood) f |= F_WOOD;
-        if (!wood && v > 0.10f) f |= F_NONWOOD;
+        // Lines drawn by this app (green, cyan, blue) must never look like a coin.
+        boolean overlayLine = s > 0.30f && v > 0.50f && hh >= 95f && hh <= 300f;
+        if (!wood && v > 0.10f && !overlayLine) f |= F_NONWOOD;
         // bright glow around the active striker: orange, cyan, blue or purple
         if (orange || (s > 0.40f && v > 0.60f && hh >= 150f && hh <= 330f)
                 || (s > 0.50f && v > 0.60f && hh > 60f && hh < 350f)) {

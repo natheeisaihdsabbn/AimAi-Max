@@ -160,7 +160,7 @@ public final class ShotSearch {
                 float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 1500f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
-                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg + 3f * level
+                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg + (cand.cutAngleDeg > 30f ? 9f : 3f) * level
                         - 45f * cand.blockers - (cand.kind != 0 ? (coverMode ? 120f : 35f) : 0f);
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
