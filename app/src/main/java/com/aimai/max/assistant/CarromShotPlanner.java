@@ -75,15 +75,12 @@ public final class CarromShotPlanner {
 
         float xMin = L + 0.215f * W;
         float xMax = R - 0.215f * W;
-        int positions = slide ? 33 : 1;
-        // aim a little deeper into the hole (towards the corner) so the coin does not scrape the jaw
+        int positions = slide ? 65 : 1;
+        // Use the detected centre of the dark pocket opening. Offsetting this point toward
+        // the corner moves the aim toward the wooden jaw on diagonal approaches.
         List<Pocket> aimPockets = new ArrayList<>();
-        float deepCx = (L + R) / 2f, deepCy = (T + B) / 2f;
         for (Pocket pk : a.pockets) {
-            float deepDx = pk.x - deepCx, deepDy = pk.y - deepCy;
-            float deepLen = (float) Math.sqrt(deepDx * deepDx + deepDy * deepDy);
-            float deepK = deepLen > 1f ? 0.30f * pk.radius / deepLen : 0f;
-            aimPockets.add(new Pocket(pk.x + deepDx * deepK, pk.y + deepDy * deepK, pk.radius));
+            aimPockets.add(new Pocket(pk.x, pk.y, pk.radius));
         }
 
         for (int i = 0; i < positions; i++) {
@@ -106,7 +103,7 @@ public final class CarromShotPlanner {
             for (Piece t : a.pieces) {
                 if (t == s0 || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) continue;
                 boolean isQueen = t.type == PieceType.QUEEN;
-                if (!anyCoin && !t.mine && !isQueen) continue;
+                if (!t.mine && !isQueen) continue;
                 float queenCost = (isQueen && !anyCoin) ? W * 0.4f : 0f;
                 float rt = t.radius;
 
@@ -133,7 +130,7 @@ public final class CarromShotPlanner {
                             float vx = vx0 / sl, vy = vy0 / sl;
                             float cos = vx * ux + vy * uy;
                             boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
-                            if (cos >= 0.2588f && awayFromBaseline) {
+                            if (cos >= 0.10f && awayFromBaseline) {
                                 int blk = coinLegBlockers;
                                 for (Piece o : a.pieces) {
                                     if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
@@ -173,7 +170,7 @@ public final class CarromShotPlanner {
                             if (d1 < rs * 1.5f || d2 < rs * 1.5f) continue;
                             float fx = (gx - hx) / d2, fy = (gy - hy) / d2;
                             float cos = fx * ux + fy * uy;
-                            if (cos < 0.2588f) continue;
+                            if (cos < 0.10f) continue;
                             int blk = coinLegBlockers;
                             for (Piece o : a.pieces) {
                                 if (o == t || o == s0 || o.type == PieceType.STRIKER) continue;
@@ -224,7 +221,7 @@ public final class CarromShotPlanner {
                         float vx = vx0 / sl, vy = vy0 / sl;
                         float cos = vx * bx + vy * by;
                         boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
-                        if (cos < 0.2588f || !awayFromBaseline) continue;
+                        if (cos < 0.10f || !awayFromBaseline) continue;
                         float l1 = dist(hx, hy, t.x, t.y);
                         float l2 = dist(p.x, p.y, hx, hy);
                         int blk = 0;
