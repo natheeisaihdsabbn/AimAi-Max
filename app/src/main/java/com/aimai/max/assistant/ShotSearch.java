@@ -23,12 +23,25 @@ public final class ShotSearch {
 
     public static final float[] SPEEDS = {18f, 23f, 28f};
     public static final float[] STRENGTH = {0.50f, 0.75f, 1.00f};
+
+    /** Compensate oblique cuts by 1/cos(theta), capped to keep the real swipe controllable. */
+    static float cutPowerCompensation(float cutAngleDeg) {
+        float radians = (float) Math.toRadians(Math.max(0f, Math.min(65f, cutAngleDeg)));
+        float cos = Math.max(0.72f, (float) Math.cos(radians));
+        return Math.min(1.35f, 1f / cos);
+    }
+
+    private static float clampPower(float power) {
+        return Math.max(0.35f, Math.min(1f, power));
+    }
     /** True right after my red coin went in: the next shot must be a safe, direct pot that covers it. */
     public static volatile boolean coverMode = false;
 
     public static final class Outcome {
         public Shot shot;
         public int level;
+        public float speed;
+        public float power;
         public float simScore;
         public boolean potsSomething;
         public boolean foulsStriker;
@@ -179,13 +192,15 @@ public final class ShotSearch {
 
             Outcome bestForShot = null;
             for (int level = 0; level < SPEEDS.length; level++) {
-                CarromSim.Result r = CarromSim.run(base, si, dx, dy, SPEEDS[level], L, T, R, B, px, py, pr, false);
+                float compensation = cutPowerCompensation(cand.cutAngleDeg);
+                float shotSpeed = SPEEDS[level] * compensation;
+                CarromSim.Result r = CarromSim.run(base, si, dx, dy, shotSpeed, L, T, R, B, px, py, pr, false);
                 result.tried++;
                 if (r.otherPotted > 0) continue;
                 boolean nearStrikerPocket = r.strikerMinPocket < pr * 2.95f;
                 // The real striker can roll farther than the simulator. Reject the shot if either
                 // the normal or 35%-harder play approaches any pocket's foul zone.
-                CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);
+                CarromSim.Result rr = CarromSim.run(base, si, dx, dy, shotSpeed * 1.35f, L, T, R, B, px, py, pr, false);
                 boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.95f;
                 if (r.strikerPotted || rr.strikerPotted || nearStrikerPocket || fastRisk) continue;
                 if (coverMode && r.minePotted == 0) continue;
@@ -201,6 +216,8 @@ public final class ShotSearch {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
                     bestForShot.level = level;
+                    bestForShot.speed = shotSpeed;
+                    bestForShot.power = clampPower(STRENGTH[level] * compensation);
                     bestForShot.simScore = score;
                     bestForShot.foulsStriker = r.strikerPotted || rr.strikerPotted;
                     bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted && r.otherPotted == 0;
@@ -219,12 +236,16 @@ public final class ShotSearch {
                 float dx = cand.aimX - cand.strikerX, dy = cand.aimY - cand.strikerY;
                 float len = (float) Math.sqrt(dx * dx + dy * dy);
                 if (len < 1f) continue;
-                CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[0], L, T, R, B, px, py, pr, false);
+                float compensation = cutPowerCompensation(cand.cutAngleDeg);
+                float shotSpeed = SPEEDS[0] * compensation;
+                CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, shotSpeed, L, T, R, B, px, py, pr, false);
                 result.tried++;
                 if (r.strikerPotted || r.strikerMinPocket < pr * 2.95f || r.otherPotted > 0 || (coverMode && r.minePotted == 0)) continue;
                 Outcome o = new Outcome();
                 o.shot = cand;
                 o.level = 0;
+                o.speed = shotSpeed;
+                o.power = clampPower(STRENGTH[0] * compensation);
                 o.simScore = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted
                         - 0.02f * cand.score - 1.0f * cand.cutAngleDeg
                         - (cand.kind == 0 ? 0f : (cand.kind == 1 ? 240f : 320f))
@@ -300,7 +321,7 @@ public final class ShotSearch {
             float len = (float) Math.sqrt(dx * dx + dy * dy);
             if (len < 1f) return 0f;
             float pw = 1f + 0.12f * u[6];
-            CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[o.level] * pw, L, T, R, B, px, py, pr, false);
+            CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, o.speed * pw, L, T, R, B, px, py, pr, false);
             if (!r.strikerPotted && r.strikerMinPocket > pr * 2.95f
                     && (coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0) && r.otherPotted == 0) good++;
         }
@@ -316,7 +337,7 @@ public final class ShotSearch {
         float dx = s.aimX - s.strikerX, dy = s.aimY - s.strikerY;
         float len = (float) Math.sqrt(dx * dx + dy * dy);
         if (len < 1f) return new float[0];
-        CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[o.level], L, T, R, B, px, py, pr, true);
+        CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, o.speed, L, T, R, B, px, py, pr, true);
         List<Float> out = new ArrayList<>();
         int drawn = 0;
         for (int i = 0; i < r.discs.size(); i++) {
