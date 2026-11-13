@@ -29,12 +29,12 @@ import android.widget.Toast;
 
 public class AssistantOverlayService extends Service {
 
-    private static final long MIN_SHOT_GAP_MS = 1000L;
-    private static final long SETTLE_MIN_MS = 1200L;
+    private static final long MIN_SHOT_GAP_MS = 300L;
+    private static final long SETTLE_MIN_MS = 350L;
     /** If the board never reports a change after a shot, allow a retry after this long. */
     private static final long SETTLE_TIMEOUT_MS = 10000L;
     /** Wait this long after sliding the striker before looking at the board again. */
-    private static final long SLIDER_GAP_MS = 650L;
+    private static final long SLIDER_GAP_MS = 250L;
 
     private WindowManager windowManager;
     private AimGuideView aimGuideView;
