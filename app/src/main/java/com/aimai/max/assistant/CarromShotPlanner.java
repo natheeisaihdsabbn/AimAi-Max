@@ -75,7 +75,7 @@ public final class CarromShotPlanner {
 
         float xMin = L + 0.215f * W;
         float xMax = R - 0.215f * W;
-        int positions = slide ? 65 : 1;
+        int positions = slide ? 25 : 1;
         // Use the detected centre of the dark pocket opening. Offsetting this point toward
         // the corner moves the aim toward the wooden jaw on diagonal approaches.
         List<Pocket> aimPockets = new ArrayList<>();
