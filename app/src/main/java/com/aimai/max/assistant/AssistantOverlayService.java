@@ -184,7 +184,7 @@ public class AssistantOverlayService extends Service {
                     float aimY = intent.getFloatExtra("curAimY", Float.NaN);
                     if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
                             || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
-                    boolean pullBack = false; // Carrom Disc Pool shoots in the finger-drag direction.
+                    boolean pullBack = true; // Carrom Disc Pool slingshot: drag opposite to shoot forward.
                     float powerMul = settings().getInt("power_pct", 100) / 100f
                             * intent.getFloatExtra("curPowerMul", 1f);
                     AimAiGestureService.swipeDurationMs = humanStyle()
