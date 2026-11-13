@@ -49,7 +49,7 @@ public final class ShotSearch {
         }
         long started = android.os.SystemClock.elapsedRealtime();
         List<Shot> all = CarromShotPlanner.planAll(a, anyCoin, slide);
-        List<Shot> cands = CarromShotPlanner.distinctTop(all, Math.max(maxCands, 64));
+        List<Shot> cands = CarromShotPlanner.distinctTop(all, Math.max(16, Math.min(maxCands, 32)));
         // Queen-cover turn: only consider a confirmed own coin as the target.
         if (coverMode) {
             List<Shot> coverCands = new ArrayList<>();
@@ -150,7 +150,7 @@ public final class ShotSearch {
 
         List<Outcome> outcomes = new ArrayList<>();
         for (Shot cand : cands) {
-            if (android.os.SystemClock.elapsedRealtime() - started > budgetMs && !outcomes.isEmpty()) break;
+            if (android.os.SystemClock.elapsedRealtime() - started >= budgetMs) break;
             strikerDisc.x = cand.strikerX;
             strikerDisc.y = cand.strikerY;
             float dx = cand.aimX - cand.strikerX, dy = cand.aimY - cand.strikerY;
@@ -190,6 +190,7 @@ public final class ShotSearch {
             // Every simulated shot fouled. Try every candidate once more at the gentlest speed only,
             // since a soft tap is the one most likely to avoid sending the striker into a pocket.
             for (Shot cand : cands) {
+                if (android.os.SystemClock.elapsedRealtime() - started >= budgetMs) break;
                 strikerDisc.x = cand.strikerX;
                 strikerDisc.y = cand.strikerY;
                 float dx = cand.aimX - cand.strikerX, dy = cand.aimY - cand.strikerY;
@@ -215,10 +216,11 @@ public final class ShotSearch {
 
         // The real game is never pixel perfect. Re-check the best few shots with the aim a little off and the
         // power a little different: a shot that still pots then beats one that only works exactly.
-        int robustCount = Math.min(6, outcomes.size());
+        int robustCount = Math.min(3, outcomes.size());
         long robustStart = android.os.SystemClock.elapsedRealtime();
         for (int ri = 0; ri < robustCount; ri++) {
-            if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 120L) break;
+            if (android.os.SystemClock.elapsedRealtime() - started >= budgetMs) break;
+            if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 70L) break;
             Outcome ro = outcomes.get(ri);
             if (!ro.potsSomething) continue;
             float frac = robustFraction(base, si, ro, L, T, R, B, px, py, pr);
