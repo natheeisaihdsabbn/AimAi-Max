@@ -356,7 +356,7 @@ public class ScanPipeline {
             coverDropFrames = 0;
         } else {
             float mineHudX = hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f;
-            mineNow = cvMyCoins(bmp, result, mineHudX);
+            int mineNow = cvMyCoins(bmp, result, mineHudX);
             if (!redIconPrev) {
                 mineAtRed = mineNow;
                 coverDone = false;
