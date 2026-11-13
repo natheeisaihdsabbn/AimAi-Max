@@ -76,6 +76,15 @@ public final class CarromShotPlanner {
         float xMin = L + 0.215f * W;
         float xMax = R - 0.215f * W;
         int positions = slide ? 33 : 1;
+        // aim a little deeper into the hole (towards the corner) so the coin does not scrape the jaw
+        List<Pocket> aimPockets = new ArrayList<>();
+        float deepCx = (L + R) / 2f, deepCy = (T + B) / 2f;
+        for (Pocket pk : a.pockets) {
+            float deepDx = pk.x - deepCx, deepDy = pk.y - deepCy;
+            float deepLen = (float) Math.sqrt(deepDx * deepDx + deepDy * deepDy);
+            float deepK = deepLen > 1f ? 0.30f * pk.radius / deepLen : 0f;
+            aimPockets.add(new Pocket(pk.x + deepDx * deepK, pk.y + deepDy * deepK, pk.radius));
+        }
 
         for (int i = 0; i < positions; i++) {
             float sx;
@@ -101,7 +110,7 @@ public final class CarromShotPlanner {
                 float queenCost = (isQueen && !anyCoin) ? W * 0.4f : 0f;
                 float rt = t.radius;
 
-                for (Pocket p : a.pockets) {
+                for (Pocket p : aimPockets) {
                     float tx = p.x - t.x, ty = p.y - t.y;
                     float tl = (float) Math.sqrt(tx * tx + ty * ty);
                     if (tl < 1f) continue;

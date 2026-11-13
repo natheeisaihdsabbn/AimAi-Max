@@ -28,6 +28,44 @@ public class ScanPipeline {
     private boolean wasMyTurn = false, queenBeforeShot = false, queenOnLastTurn = false, coverPending = false;
     private long dimAt = 0L;
 
+    private boolean redIconPrev = false, coverDone = false;
+    private int mineAtRed = 0, coverDropFrames = 0;
+
+    private static int[] cvHudRgb(Bitmap bmp, float fx) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int cx = Math.round(fx * w), cy = Math.round(0.161f * h);
+        long sr = 0, sg = 0, sb = 0;
+        int n = 0;
+        for (int dy = -6; dy <= 6; dy += 3) {
+            for (int dx = -6; dx <= 6; dx += 3) {
+                int c = bmp.getPixel(Math.max(0, Math.min(w - 1, cx + dx)), Math.max(0, Math.min(h - 1, cy + dy)));
+                sr += Color.red(c);
+                sg += Color.green(c);
+                sb += Color.blue(c);
+                n++;
+            }
+        }
+        return new int[]{(int) (sr / n), (int) (sg / n), (int) (sb / n)};
+    }
+
+    private static float cvColorDist(int rgb, int[] c) {
+        float dr = Color.red(rgb) - c[0], dg = Color.green(rgb) - c[1], db = Color.blue(rgb) - c[2];
+        return (float) Math.sqrt(dr * dr + dg * dg + db * db);
+    }
+
+    /** How many of my coins (not the red) are on the board, told apart by the colour of my coin icon. */
+    private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
+        int[] mh = cvHudRgb(bmp, 0.111f), oh = cvHudRgb(bmp, 0.889f);
+        int n = 0;
+        for (CarromBoardAnalyzer.Piece p : a.pieces) {
+            if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER
+                    || p.type == CarromBoardAnalyzer.PieceType.QUEEN) continue;
+            float dm = cvColorDist(p.rgb, mh), dop = cvColorDist(p.rgb, oh);
+            if (dm < dop && dm < 150f) n++;
+        }
+        return n;
+    }
+
     /** True while the game shows the little red coin icon next to my coin icon (red still to be covered). */
     private static boolean redPendingIcon(Bitmap bmp) {
         int w = bmp.getWidth(), h = bmp.getHeight();
@@ -294,7 +332,29 @@ public class ScanPipeline {
         }
         if (turnNow) queenOnLastTurn = queenNow;
         wasMyTurn = turnNow;
-        coverPending = result.board.detected && redPendingIcon(bmp);
+        boolean redIcon = result.board.detected && redPendingIcon(bmp);
+        if (!redIcon) {
+            redIconPrev = false;
+            coverDone = false;
+            coverDropFrames = 0;
+        } else {
+            int mineNow = cvMyCoins(bmp, result);
+            if (!redIconPrev) {
+                mineAtRed = mineNow;
+                coverDone = false;
+                coverDropFrames = 0;
+            } else if (!coverDone) {
+                if (mineNow < mineAtRed) {
+                    coverDropFrames++;
+                    if (coverDropFrames >= 2) coverDone = true;
+                } else {
+                    coverDropFrames = 0;
+                    if (mineNow > mineAtRed) mineAtRed = mineNow;
+                }
+            }
+            redIconPrev = true;
+        }
+        coverPending = redIcon && !coverDone;
         ShotSearch.coverMode = coverPending;
         if (striker != null && result.board.detected && myTurn) {
             markMine(ctx, bmp, result);
