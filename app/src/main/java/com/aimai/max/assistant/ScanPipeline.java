@@ -362,11 +362,11 @@ public class ScanPipeline {
             if (cacheCur != null) {
                 cur = cacheCur;
                 best = cacheBest;
-            } else if (looseFrameCount >= 0) {
-                cur = ShotSearch.search(result, false, false, 240L, 64);
+            } else if (looseFrameCount >= 1) {
+                cur = ShotSearch.search(result, false, false, 130L, 32);
                 // slide the striker only when the current spot has no clean potting shot (keeps the turn under a second)
                 boolean needSlide = cur.best == null || !cur.best.potsSomething || cur.best.simScore < 60f;
-                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 320L, 64) : null;
+                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 150L, 32) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;
@@ -391,15 +391,8 @@ public class ScanPipeline {
             putPlan(guideIntent, "cur", cur.best, frameW, frameH);
             putPlan(guideIntent, "best", best == null ? null : best.best, frameW, frameH);
 
-            // other shots tried, shown thin ("visible search")
-            List<Float> altList = new ArrayList<>();
-            for (ShotSearch.Outcome o : cur.alts) {
-                if (o.paths == null) continue;
-                for (float v : o.paths) altList.add(v);
-            }
-            float[] alts = new float[altList.size()];
-            for (int i = 0; i < alts.length; i++) alts[i] = altList.get(i);
-            guideIntent.putExtra("curAlts", normalizePaths(alts, frameW, frameH));
+            // Draw only the selected simulated route; alternate paths made the aim look ambiguous.
+            guideIntent.putExtra("curAlts", new float[0]);
 
             boolean curFound = cur.best != null && cur.best.shot != null && cur.best.shot.valid;
             guideIntent.putExtra("targetFound", curFound);
