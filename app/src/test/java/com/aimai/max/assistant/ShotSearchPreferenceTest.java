@@ -59,4 +59,11 @@ public class ShotSearchPreferenceTest {
         outcome.foulsStriker = false;
         return outcome;
     }
+
+    @Test
+    public void cutPowerUsesInverseCosineAndCapsExtremeAngles() {
+        assertEquals(1f, ShotSearch.cutPowerCompensation(0f), 0.001f);
+        assertEquals(1.1547f, ShotSearch.cutPowerCompensation(30f), 0.002f);
+        assertEquals(1.35f, ShotSearch.cutPowerCompensation(60f), 0.001f);
+    }
 }
