@@ -121,17 +121,29 @@ public class AssistantOverlayService extends Service {
             float curScore = intent.getFloatExtra("curSimScore", -1000f);
             float bestScore = intent.getFloatExtra("bestSimScore", -1000f);
             float bestX = intent.getFloatExtra("bestStrikerX", x);
+            float curPlanX = intent.getFloatExtra("curStrikerX", Float.NaN);
+            float curPlanY = intent.getFloatExtra("curStrikerY", Float.NaN);
+            float strikerRadius = intent.getFloatExtra("strikerRadius", 0f);
+            // A plan is executable only from the exact striker position it was simulated for.
+            // In particular, never fire a "best" plan from the old position after a failed slider drag.
+            float positionTolerance = Math.max(0.004f, strikerRadius * 0.45f);
+            boolean curPlanAtCurrent = curFound
+                    && Float.isFinite(curPlanX) && Float.isFinite(curPlanY)
+                    && Math.abs(curPlanX - x) <= positionTolerance
+                    && Math.abs(curPlanY - y) <= positionTolerance;
 
-            // Slide the striker only when another spot is clearly better, and only twice per shot.
+            // A slide is only a positioning action. After it, wait for a fresh screenshot and re-plan;
+            // never reuse the alternate-position ghost point as a live shot direction.
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
-            boolean wantSlide = slideOn && bestFound && sliderTries < 2 && Math.abs(bestX - x) > 0.015f
-                    && (!curFound || bestScore > curScore + 90f);
+            boolean wantSlide = slideOn && bestFound && sliderTries < 2
+                    && Math.abs(bestX - x) > 0.010f
+                    && (!curPlanAtCurrent || bestScore > curScore + 90f);
 
-            // Draw the shot that will be played: the simulated path of the striker and every coin it moves,
-            // including wall bounces. "Visible search" also shows the other shots that were tried, thin.
-            String drawPre = (wantSlide || !curFound) ? "best" : "cur";
-            if ("best".equals(drawPre) && !bestFound) drawPre = "cur";
-            if (intent.getBooleanExtra(drawPre + "Found", false)) {
+            // Draw the selected route. If it is an alternate striker position, it is guidance only
+            // until the next screenshot confirms that the striker actually moved there.
+            String drawPre = (wantSlide || !curPlanAtCurrent) ? "best" : "cur";
+            if ("best".equals(drawPre) && !bestFound) drawPre = curPlanAtCurrent ? "cur" : "";
+            if (!drawPre.isEmpty() && intent.getBooleanExtra(drawPre + "Found", false)) {
                 aimGuideView.setSearch(intent.getFloatArrayExtra(drawPre + "Paths"),
                         settings().getBoolean("visible_search2", false) ? intent.getFloatArrayExtra("curAlts") : null,
                         intent.getFloatExtra(drawPre + "GhostX", -1f),
@@ -151,7 +163,7 @@ public class AssistantOverlayService extends Service {
             boolean hasPot = curFound ? intent.getBooleanExtra("curPots", false) : intent.getBooleanExtra("bestPots", false);
             // Covering the red coin: never fire a shot that cannot pot while a better spot may still be found (8 s at most)
             boolean coverHold = cover && !hasPot && !wantSlide && now - coverSince < 8000L;
-            if (autoPlay && !coverHold && !waitingForSettle && boardSteady && (curFound || bestFound)
+            if (autoPlay && !coverHold && !waitingForSettle && boardSteady && curPlanAtCurrent
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
                 int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
@@ -159,19 +171,25 @@ public class AssistantOverlayService extends Service {
                 int sh = size[1];
                 if (wantSlide) {
                     if (now - lastSliderAt > SLIDER_GAP_MS) {
-                        AimAiGestureService.dragSlider(x * sw, bestX * sw, sliderY * sh, sw, sh);
-                        sliderTries++;
-                        lastSliderAt = now;
+                        boolean moved = AimAiGestureService.dragSlider(x * sw, bestX * sw, sliderY * sh, sw, sh);
+                        if (moved) {
+                            sliderTries++;
+                            lastSliderAt = now;
+                        }
                     }
-                } else if (curFound || bestFound) {
-                    float aimX = curFound ? intent.getFloatExtra("curAimX", x) : intent.getFloatExtra("bestGhostX", x);
-                    float aimY = curFound ? intent.getFloatExtra("curAimY", y) : intent.getFloatExtra("bestGhostY", y);
+                } else if (curPlanAtCurrent) {
+                    // Always use the aim point from the current-position simulation. For bank shots
+                    // this is the first wall-contact point; for direct/coin-bank shots it is the ghost point.
+                    float aimX = intent.getFloatExtra("curAimX", Float.NaN);
+                    float aimY = intent.getFloatExtra("curAimY", Float.NaN);
+                    if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
+                            || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
                     boolean pullBack = false; // Carrom Disc Pool shoots in the finger-drag direction.
                     float powerMul = settings().getInt("power_pct", 100) / 100f;
                     AimAiGestureService.swipeDurationMs = humanStyle()
                             ? 480 + (int) (Math.random() * 220) : 150;
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, aimX * sw, aimY * sh, sw, sh,
-                            intent.getFloatExtra(curFound ? "curPower" : "bestPower", 0.8f), pullBack, powerMul)) {
+                            intent.getFloatExtra("curPower", 0.8f), pullBack, powerMul)) {
                         waitingForSettle = true;
                         sawMotionAfterShot = false;
                         lastAutoShotAt = android.os.SystemClock.elapsedRealtime();
