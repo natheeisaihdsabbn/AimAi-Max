@@ -253,7 +253,8 @@ public class ScanPipeline {
         in.putExtra(pre + "PocketX", s.pocket.x / fw);
         in.putExtra(pre + "PocketY", s.pocket.y / fh);
         in.putExtra(pre + "Kind", s.kind);
-        in.putExtra(pre + "Power", ShotSearch.STRENGTH[Math.max(0, Math.min(2, o.level))]);
+        in.putExtra(pre + "Power", o.power > 0f ? o.power : ShotSearch.STRENGTH[Math.max(0, Math.min(2, o.level))]);
+        in.putExtra(pre + "PowerMul", o.powerMultiplier > 0f ? o.powerMultiplier : 1f);
         in.putExtra(pre + "SimScore", o.simScore);
         in.putExtra(pre + "Pots", o.potsSomething);
         in.putExtra(pre + "Blockers", s.blockers);
