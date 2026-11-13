@@ -301,7 +301,7 @@ public final class CarromShotPlanner {
         float nearD = Float.MAX_VALUE;
         for (Piece t : a.pieces) {
             if (t == s || t.type == PieceType.STRIKER || t.type == PieceType.UNKNOWN) continue;
-            if (!anyCoin && !t.mine && t.type != PieceType.QUEEN) continue;
+            if (!t.mine && t.type != PieceType.QUEEN) continue;
             float d = dist(t.x, t.y, s.x, s.y);
             if (d < nearD && d > 1f) {
                 nearD = d;
