@@ -55,7 +55,10 @@ public class ScanPipeline {
 
     /** How many of my coins (not the red) are on the board, told apart by the colour of my coin icon. */
     private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
-        int[] mh = cvHudRgb(bmp, 0.111f), oh = cvHudRgb(bmp, 0.889f);
+        String mode = "AUTO";
+        // Ownership mode is supplied by markMine; AUTO's side is inferred from the active HUD highlight.
+        float mineX = hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f;
+        int[] mh = cvHudRgb(bmp, mineX), oh = cvHudRgb(bmp, mineX == 0.111f ? 0.889f : 0.111f);
         int n = 0;
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
             if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER
@@ -66,10 +69,9 @@ public class ScanPipeline {
         return n;
     }
 
-    /** True while the game shows the little red coin icon next to my coin icon (red still to be covered). */
-    private static boolean redPendingIcon(Bitmap bmp) {
+    private static boolean isRedAt(Bitmap bmp, float fx) {
         int w = bmp.getWidth(), h = bmp.getHeight();
-        int cx = Math.round(0.174f * w), cy = Math.round(0.161f * h);
+        int cx = Math.round(fx * w), cy = Math.round(0.161f * h);
         int r = Math.max(2, Math.round(0.012f * w));
         int[] rs = new int[25], gs = new int[25], bs = new int[25];
         int n = 0;
@@ -78,9 +80,7 @@ public class ScanPipeline {
                 int x = Math.max(0, Math.min(w - 1, cx + dx * r / 2));
                 int y = Math.max(0, Math.min(h - 1, cy + dy * r / 2));
                 int c = bmp.getPixel(x, y);
-                rs[n] = Color.red(c);
-                gs[n] = Color.green(c);
-                bs[n] = Color.blue(c);
+                rs[n] = Color.red(c); gs[n] = Color.green(c); bs[n] = Color.blue(c);
                 n++;
             }
         }
@@ -89,6 +89,10 @@ public class ScanPipeline {
         java.util.Arrays.sort(bs, 0, n);
         int mr = rs[n / 2], mg = gs[n / 2], mb = bs[n / 2];
         return mr > 105 && mr - mg > 70 && mr - mb > 25;
+    }
+
+    private static boolean redPendingIcon(Bitmap bmp) {
+        return isRedAt(bmp, 0.174f) || isRedAt(bmp, 0.826f);
     }
 
     public void reset() {
@@ -157,16 +161,35 @@ public class ScanPipeline {
      * Marks which coins are mine. AUTO compares each coin with the little coin icon next to my name
      * (top-left) and the one next to the opponent (top-right), so any coin skin works.
      */
+    private static float hudActivity(Bitmap bmp, float left, float right) {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int x0 = Math.max(0, Math.round(left * w)), x1 = Math.min(w - 1, Math.round(right * w));
+        int y0 = Math.max(0, Math.round(0.105f * h)), y1 = Math.min(h - 1, Math.round(0.215f * h));
+        long total = 0; int count = 0;
+        for (int y = y0; y <= y1; y += 3) for (int x = x0; x <= x1; x += 3) {
+            int c = bmp.getPixel(x, y);
+            total += Math.max(Color.red(c), Math.max(Color.green(c), Color.blue(c)));
+            count++;
+        }
+        return count == 0 ? 0f : total / (float) count;
+    }
+
     private void markMine(Context ctx, Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
         String mode = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
                 .getString("my_coins", "AUTO");
-        int[] mineHud = hudColor(bmp, 0.111f);
-        int[] oppHud = hudColor(bmp, 0.889f);
+        float mineFx = "AUTO".equals(mode)
+                ? (hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f)
+                : 0.111f;
+        int[] mineHud = hudColor(bmp, mineFx);
+        int[] oppHud = hudColor(bmp, mineFx == 0.111f ? 0.889f : 0.111f);
         int count = 0;
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
             if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER) continue;
             boolean mine;
-            if ("BLACK".equals(mode)) {
+            if ("ANY".equals(mode)) {
+                mine = p.type == CarromBoardAnalyzer.PieceType.WHITE
+                        || p.type == CarromBoardAnalyzer.PieceType.BLACK;
+            } else if ("BLACK".equals(mode)) {
                 mine = p.type == CarromBoardAnalyzer.PieceType.BLACK;
             } else if ("WHITE".equals(mode)) {
                 mine = p.type == CarromBoardAnalyzer.PieceType.WHITE;
