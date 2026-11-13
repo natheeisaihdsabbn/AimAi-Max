@@ -185,7 +185,8 @@ public class AssistantOverlayService extends Service {
                     if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
                             || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
                     boolean pullBack = false; // Carrom Disc Pool shoots in the finger-drag direction.
-                    float powerMul = settings().getInt("power_pct", 100) / 100f;
+                    float powerMul = settings().getInt("power_pct", 100) / 100f
+                            * intent.getFloatExtra("curPowerMul", 1f);
                     AimAiGestureService.swipeDurationMs = humanStyle()
                             ? 480 + (int) (Math.random() * 220) : 150;
                     if (AimAiGestureService.swipeShot(x * sw, y * sh, aimX * sw, aimY * sh, sw, sh,
