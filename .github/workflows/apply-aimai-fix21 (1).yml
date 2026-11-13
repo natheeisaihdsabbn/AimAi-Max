@@ -77,25 +77,6 @@ jobs:
                "if (dx * dx + dy * dy < (a.owner == STRIKER ? strikerPotR2 : potR2)) {"),
           ]))
 
-          # ---------------------------------------------------------------- Planner: aim at the deep centre of the hole
-          jobs.append(edit("CarromShotPlanner.java", "deepPocket", [
-              ("for (Pocket p : a.pockets) {\n                    float tx = p.x - t.x, ty = p.y - t.y;",
-               "for (Pocket rawPocket : a.pockets) {\n"
-               "                    Pocket p = deepPocket(rawPocket, L, T, R, B);\n"
-               "                    float tx = p.x - t.x, ty = p.y - t.y;"),
-              ("private static Shot make(int kind, Piece t, Pocket p,",
-               "/** The point a coin is aimed at: the middle of the hole, a little towards the corner, never the rim. */\n"
-               "    private static Pocket deepPocket(Pocket p, float L, float T, float R, float B) {\n"
-               "        float cx = (L + R) / 2f, cy = (T + B) / 2f;\n"
-               "        float dx = p.x - cx, dy = p.y - cy;\n"
-               "        float len = (float) Math.sqrt(dx * dx + dy * dy);\n"
-               "        if (len < 1f) return p;\n"
-               "        float push = 0.15f * p.radius;\n"
-               "        return new Pocket(p.x + dx / len * push, p.y + dy / len * push, p.radius);\n"
-               "    }\n\n"
-               "    private static Shot make(int kind, Piece t, Pocket p,"),
-          ]))
-
           # ---------------------------------------------------------------- ShotSearch: never the opponent's coin, safer cover
           jobs.append(edit("ShotSearch.java", "2500f * r.otherPotted", [
               ("float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted",
