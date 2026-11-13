@@ -137,7 +137,7 @@ public class AssistantOverlayService extends Service {
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
             boolean wantSlide = slideOn && bestFound && sliderTries < 2
                     && Math.abs(bestX - x) > 0.010f
-                    && (!curPlanAtCurrent || bestScore > curScore + 90f);
+                    && (!curPlanAtCurrent || bestScore > curScore + 4f);
 
             // Draw the selected route. If it is an alternate striker position, it is guidance only
             // until the next screenshot confirms that the striker actually moved there.
