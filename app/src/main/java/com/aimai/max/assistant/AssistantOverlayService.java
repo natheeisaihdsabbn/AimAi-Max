@@ -163,7 +163,7 @@ public class AssistantOverlayService extends Service {
             boolean hasPot = curFound ? intent.getBooleanExtra("curPots", false) : intent.getBooleanExtra("bestPots", false);
             // Covering the red coin: never fire a shot that cannot pot while a better spot may still be found (8 s at most)
             boolean coverHold = cover && !hasPot && !wantSlide && now - coverSince < 8000L;
-            if (autoPlay && !coverHold && !waitingForSettle && boardSteady && curPlanAtCurrent
+            if (autoPlay && !coverHold && !waitingForSettle && boardSteady && (curPlanAtCurrent || wantSlide)
                     && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
                     && AimAiGestureService.isConnected()) {
                 int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
