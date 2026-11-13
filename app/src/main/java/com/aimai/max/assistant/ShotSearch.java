@@ -26,9 +26,9 @@ public final class ShotSearch {
 
     /** Compensate oblique cuts by 1/cos(theta), capped to keep the real swipe controllable. */
     static float cutPowerCompensation(float cutAngleDeg) {
-        float radians = (float) Math.toRadians(Math.max(0f, Math.min(65f, cutAngleDeg)));
-        float cos = Math.max(0.72f, (float) Math.cos(radians));
-        return Math.min(1.35f, 1f / cos);
+        float radians = (float) Math.toRadians(Math.max(0f, Math.min(75f, cutAngleDeg)));
+        float cos = Math.max(0.30f, (float) Math.cos(radians));
+        return Math.min(2.15f, 1f / cos);
     }
 
     private static float clampPower(float power) {
@@ -81,15 +81,17 @@ public final class ShotSearch {
         }
         long started = android.os.SystemClock.elapsedRealtime();
         List<Shot> all = CarromShotPlanner.planAll(a, anyCoin, slide);
-        List<Shot> cands = CarromShotPlanner.distinctTop(all, Math.max(16, Math.min(maxCands, 32)));
-        // Queen-cover turn: only consider a confirmed own coin as the target.
+        // Filter before top-N truncation: otherwise valid cover targets can be crowded out
+        // by unrelated shots before the cover-mode restriction is applied.
         if (coverMode) {
-            List<Shot> coverCands = new ArrayList<>();
-            for (Shot shot : cands) {
-                if (shot.target != null && shot.target.mine && shot.target.type != PieceType.QUEEN) coverCands.add(shot);
+            List<Shot> legalCoverShots = new ArrayList<>();
+            for (Shot shot : all) {
+                if (shot != null && shot.target != null && shot.target.mine
+                        && shot.target.type != PieceType.QUEEN) legalCoverShots.add(shot);
             }
-            cands = coverCands;
+            all = legalCoverShots;
         }
+        List<Shot> cands = CarromShotPlanner.distinctTop(all, Math.max(16, Math.min(maxCands, 32)));
         if (cands.isEmpty()) {
             Shot fb = CarromShotPlanner.best(a, all, anyCoin);
             if (!fb.valid || (coverMode && (fb.target == null || !fb.target.mine || fb.target.type == PieceType.QUEEN))) return result;
