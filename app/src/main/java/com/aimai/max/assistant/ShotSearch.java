@@ -165,9 +165,11 @@ public final class ShotSearch {
                 result.tried++;
                 if (r.otherPotted > 0) continue;
                 boolean nearStrikerPocket = r.strikerMinPocket < pr * 2.95f;
-                // the real striker rolls further than the simulated one, so the same shot is also tried 35 percent harder
+                // The real striker can roll farther than the simulator. Reject the shot if either
+                // the normal or 35%-harder play approaches any pocket's foul zone.
                 CarromSim.Result rr = CarromSim.run(base, si, dx, dy, SPEEDS[level] * 1.35f, L, T, R, B, px, py, pr, false);
                 boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.95f;
+                if (r.strikerPotted || rr.strikerPotted || nearStrikerPocket || fastRisk) continue;
                 if (coverMode && r.minePotted == 0) continue;
                 float score = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 1500f : 0f)
@@ -198,7 +200,7 @@ public final class ShotSearch {
                 if (len < 1f) continue;
                 CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, SPEEDS[0], L, T, R, B, px, py, pr, false);
                 result.tried++;
-                if (r.strikerPotted || r.otherPotted > 0 || (coverMode && r.minePotted == 0)) continue;
+                if (r.strikerPotted || r.strikerMinPocket < pr * 2.95f || r.otherPotted > 0 || (coverMode && r.minePotted == 0)) continue;
                 Outcome o = new Outcome();
                 o.shot = cand;
                 o.level = 0;
