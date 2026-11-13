@@ -62,7 +62,9 @@ public final class CarromSim {
 
         float dt = 1f / SUB;
         float decelSub = DECEL / SUB;
-        float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);
+        float potR2 = (pocketR * 0.62f) * (pocketR * 0.62f);
+        float strikerPotR2 = (pocketR * 0.95f) * (pocketR * 0.95f);
+        float mouthR2 = pocketR * pocketR;
         float strikerMinD2 = 1e18f;
         int steps = 0;
         for (int step = 0; step < MAX_STEPS; step++) {
@@ -84,16 +86,22 @@ public final class CarromSim {
                         a.vx = 0f;
                         a.vy = 0f;
                     }
+                    // Leave the wall open inside a pocket mouth so discs can enter it naturally.
+                    boolean inMouth = false;
+                    for (int pm = 0; pm < pocketX.length; pm++) {
+                        float mx = a.x - pocketX[pm], my = a.y - pocketY[pm];
+                        if (mx * mx + my * my < mouthR2) { inMouth = true; break; }
+                    }
                     // walls
-                    if (a.x - a.r < left) { a.x = left + a.r; a.vx = Math.abs(a.vx) * REST_WALL; }
-                    else if (a.x + a.r > right) { a.x = right - a.r; a.vx = -Math.abs(a.vx) * REST_WALL; }
-                    if (a.y - a.r < top) { a.y = top + a.r; a.vy = Math.abs(a.vy) * REST_WALL; }
-                    else if (a.y + a.r > bottom) { a.y = bottom - a.r; a.vy = -Math.abs(a.vy) * REST_WALL; }
+                    if (!inMouth && a.x - a.r < left) { a.x = left + a.r; a.vx = Math.abs(a.vx) * REST_WALL; }
+                    else if (!inMouth && a.x + a.r > right) { a.x = right - a.r; a.vx = -Math.abs(a.vx) * REST_WALL; }
+                    if (!inMouth && a.y - a.r < top) { a.y = top + a.r; a.vy = Math.abs(a.vy) * REST_WALL; }
+                    else if (!inMouth && a.y + a.r > bottom) { a.y = bottom - a.r; a.vy = -Math.abs(a.vy) * REST_WALL; }
                     // pockets
                     for (int p = 0; p < pocketX.length; p++) {
                         float dx = a.x - pocketX[p], dy = a.y - pocketY[p];
                         if (a.owner == STRIKER && dx * dx + dy * dy < strikerMinD2) strikerMinD2 = dx * dx + dy * dy;
-                        if (dx * dx + dy * dy < potR2) {
+                        if (dx * dx + dy * dy < (a.owner == STRIKER ? strikerPotR2 : potR2)) {
                             a.potted = true;
                             a.vx = 0f;
                             a.vy = 0f;
