@@ -42,6 +42,7 @@ public final class ShotSearch {
         public int level;
         public float speed;
         public float power;
+        public float powerMultiplier = 1f;
         public float simScore;
         public boolean potsSomething;
         public boolean foulsStriker;
@@ -169,6 +170,9 @@ public final class ShotSearch {
                         Outcome bo = new Outcome();
                         bo.shot = bs;
                         bo.level = 2;
+                        bo.speed = SPEEDS[2];
+                        bo.power = 1f;
+                        bo.powerMultiplier = 1f;
                         bo.potsSomething = false;
                         bo.paths = record(base, si, bo, L, T, R, B, px, py, pr);
                         result.best = bo;
@@ -217,7 +221,8 @@ public final class ShotSearch {
                     bestForShot.shot = cand;
                     bestForShot.level = level;
                     bestForShot.speed = shotSpeed;
-                    bestForShot.power = clampPower(STRENGTH[level] * compensation);
+                    bestForShot.power = STRENGTH[level];
+                    bestForShot.powerMultiplier = compensation;
                     bestForShot.simScore = score;
                     bestForShot.foulsStriker = r.strikerPotted || rr.strikerPotted;
                     bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted && r.otherPotted == 0;
@@ -245,7 +250,8 @@ public final class ShotSearch {
                 o.shot = cand;
                 o.level = 0;
                 o.speed = shotSpeed;
-                o.power = clampPower(STRENGTH[0] * compensation);
+                o.power = STRENGTH[0];
+                o.powerMultiplier = compensation;
                 o.simScore = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted
                         - 0.02f * cand.score - 1.0f * cand.cutAngleDeg
                         - (cand.kind == 0 ? 0f : (cand.kind == 1 ? 240f : 320f))
