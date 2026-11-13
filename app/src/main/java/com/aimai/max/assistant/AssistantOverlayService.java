@@ -166,7 +166,7 @@ public class AssistantOverlayService extends Service {
                 } else if (curFound || bestFound) {
                     float aimX = curFound ? intent.getFloatExtra("curAimX", x) : intent.getFloatExtra("bestGhostX", x);
                     float aimY = curFound ? intent.getFloatExtra("curAimY", y) : intent.getFloatExtra("bestGhostY", y);
-                    boolean pullBack = true;
+                    boolean pullBack = false; // Carrom Disc Pool shoots in the finger-drag direction.
                     float powerMul = settings().getInt("power_pct", 100) / 100f;
                     AimAiGestureService.swipeDurationMs = humanStyle()
                             ? 480 + (int) (Math.random() * 220) : 150;
