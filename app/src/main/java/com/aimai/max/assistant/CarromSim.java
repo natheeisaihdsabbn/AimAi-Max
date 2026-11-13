@@ -62,8 +62,6 @@ public final class CarromSim {
 
         float dt = 1f / SUB;
         float decelSub = DECEL / SUB;
-        float potR2 = (pocketR * 0.62f) * (pocketR * 0.62f);
-        float strikerPotR2 = (pocketR * 0.95f) * (pocketR * 0.95f);
         float mouthR2 = pocketR * pocketR;
         float strikerMinD2 = 1e18f;
         int steps = 0;
