@@ -363,10 +363,10 @@ public class ScanPipeline {
                 cur = cacheCur;
                 best = cacheBest;
             } else if (looseFrameCount >= 0) {
-                cur = ShotSearch.search(result, false, false, 110L, 24);
+                cur = ShotSearch.search(result, false, false, 240L, 64);
                 // slide the striker only when the current spot has no clean potting shot (keeps the turn under a second)
                 boolean needSlide = cur.best == null || !cur.best.potsSomething || cur.best.simScore < 60f;
-                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 170L, 24) : null;
+                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 320L, 64) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;
