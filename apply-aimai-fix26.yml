@@ -1,0 +1,77 @@
+name: Apply AimAi Max server password when the app opens
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix26*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Ask the server password when the app opens
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          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
+          j27j/7MiN0vGFAAA
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Check protected files are untouched
+        run: |
+          if git diff --name-only | grep -E 'LicenseActivity\.java|LicenseManager\.java|AndroidManifest\.xml'; then
+            echo "A protected file changed, stopping."
+            exit 1
+          fi
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Ask the server password when the app opens"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
