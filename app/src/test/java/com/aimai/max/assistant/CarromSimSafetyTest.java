@@ -48,11 +48,7 @@ public class CarromSimSafetyTest {
         mine.owner = CarromSim.MINE;
         discs.add(mine);
 
-        Result result = CarromSim.run(discs, 0, 0f, -1f, 1f,
-                0f, 0f, 1000f, 1000f,
-                new float[]{40f}, new float[]{40f}, 32f, false);
-
-        // Directly move the own coin with a second run by making it the striker body.
+        // Move the own coin toward the pocket and verify it can still be potted.
         List<Disc> coinRun = new ArrayList<>();
         Disc coin = CarromSim.copy(mine);
         coin.owner = CarromSim.MINE;
