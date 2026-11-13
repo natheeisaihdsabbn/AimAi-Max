@@ -1,4 +1,4 @@
-name: Apply AimAi Max joined buttons and my-turn only
+name: Apply AimAi Max deep-pocket accuracy fix
 
 on:
   push:
@@ -21,155 +21,122 @@ jobs:
         with:
           ref: aimai-final-redesign
 
-      - name: Joined floating buttons, no lines on the other player's turn, no swipe buttons
+      - name: Deep pocket target, open pocket mouth, never the opponent's coin
         run: |
           python3 - <<'PYEND'
-          import base64
-          def dec(s):
-              return base64.b64decode("".join(s.split())).decode("utf-8")
-          chip_methods = dec("""
-          ICAgIHByaXZhdGUgdm9pZCByZWZyZXNoQXV0b0NoaXAoKSB7CiAgICAgICAgaWYgKGF1dG9DaGlwID09IG51bGwpIHJldHVybjsK
-          ICAgICAgICBhdXRvQ2hpcC5zZXRCYWNrZ3JvdW5kKHNoYXBlKENvbG9yLnJnYigxMiwgMTMsIDE4KSwgMTApKTsKICAgICAgICBp
-          ZiAoYXV0b0RvdCAhPSBudWxsKSB7CiAgICAgICAgICAgIEdyYWRpZW50RHJhd2FibGUgcmluZyA9IHNoYXBlKGF1dG9QbGF5ID8g
-          Q29sb3IucmdiKDI0LCA3MCwgNTApIDogQ29sb3IucmdiKDM0LCAzNiwgNDYpLCAxNSk7CiAgICAgICAgICAgIHJpbmcuc2V0U3Ry
-          b2tlKGRwKDEpLCBhdXRvUGxheSA/IENvbG9yLnJnYig3MCwgMjMwLCAxNDApIDogQ29sb3IucmdiKDExMCwgMTE0LCAxMzApKTsK
-          ICAgICAgICAgICAgYXV0b0RvdC5zZXRCYWNrZ3JvdW5kKHJpbmcpOwogICAgICAgIH0KICAgICAgICBpZiAoYXV0b1N5bWJvbCAh
-          PSBudWxsKSBhdXRvU3ltYm9sLnNldFRleHQoYXV0b1BsYXkgPyAiSUkiIDogIlx1MjVCNiIpOwogICAgfQoKICAgIC8qKgogICAg
-          ICogVGhlIEF1dG8gYnV0dG9uIHNpdHMgb24gdG9wIG9mIHRoZSBsb2dvIGJ1dHRvbjsgYm90aCBhcmUgb25lIHdpbmRvdywgc28g
-          dGhleSBtb3ZlIHRvZ2V0aGVyLgogICAgICogVGFwID0gc3RhcnQgb3Igc3RvcCBBdXRvIFBsYXksIGRyYWcgPSBtb3ZlIGJvdGgu
-          CiAgICAgKi8KICAgIHByaXZhdGUgdm9pZCBidWlsZEF1dG9DaGlwKGZpbmFsIFdpbmRvd01hbmFnZXIuTGF5b3V0UGFyYW1zIGRv
-          Y2tQYXJhbXMpIHsKICAgICAgICBhdXRvQ2hpcCA9IG5ldyBMaW5lYXJMYXlvdXQodGhpcyk7CiAgICAgICAgYXV0b0NoaXAuc2V0
-          R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAgICAgYXV0b1N5bWJvbCA9IGxhYmVsKCJcdTI1QjYiLCAxMiwgQ29sb3IuV0hJ
-          VEUsIHRydWUpOwogICAgICAgIGF1dG9TeW1ib2wuc2V0R3Jhdml0eShHcmF2aXR5LkNFTlRFUik7CiAgICAgICAgYXV0b0RvdCA9
-          IGF1dG9TeW1ib2w7CiAgICAgICAgYXV0b0NoaXAuYWRkVmlldyhhdXRvU3ltYm9sLCBuZXcgTGluZWFyTGF5b3V0LkxheW91dFBh
-          cmFtcyhkcCgzMCksIGRwKDMwKSkpOwogICAgICAgIHJlZnJlc2hBdXRvQ2hpcCgpOwogICAgICAgIGF1dG9DaGlwLnNldE9uVG91
-          Y2hMaXN0ZW5lcihuZXcgVmlldy5PblRvdWNoTGlzdGVuZXIoKSB7CiAgICAgICAgICAgIHByaXZhdGUgaW50IHN0YXJ0WCwgc3Rh
-          cnRZOwogICAgICAgICAgICBwcml2YXRlIGZsb2F0IHRvdWNoWCwgdG91Y2hZOwogICAgICAgICAgICBwcml2YXRlIGJvb2xlYW4g
-          bW92ZWQ7CiAgICAgICAgICAgIHB1YmxpYyBib29sZWFuIG9uVG91Y2goVmlldyB2aWV3LCBNb3Rpb25FdmVudCBldmVudCkgewog
-          ICAgICAgICAgICAgICAgaWYgKGV2ZW50LmdldEFjdGlvbigpID09IE1vdGlvbkV2ZW50LkFDVElPTl9ET1dOKSB7CiAgICAgICAg
-          ICAgICAgICAgICAgc3RhcnRYID0gZG9ja1BhcmFtcy54OwogICAgICAgICAgICAgICAgICAgIHN0YXJ0WSA9IGRvY2tQYXJhbXMu
-          eTsKICAgICAgICAgICAgICAgICAgICB0b3VjaFggPSBldmVudC5nZXRSYXdYKCk7CiAgICAgICAgICAgICAgICAgICAgdG91Y2hZ
-          ID0gZXZlbnQuZ2V0UmF3WSgpOwogICAgICAgICAgICAgICAgICAgIG1vdmVkID0gZmFsc2U7CiAgICAgICAgICAgICAgICAgICAg
-          cmV0dXJuIHRydWU7CiAgICAgICAgICAgICAgICB9CiAgICAgICAgICAgICAgICBpZiAoZXZlbnQuZ2V0QWN0aW9uKCkgPT0gTW90
-          aW9uRXZlbnQuQUNUSU9OX01PVkUpIHsKICAgICAgICAgICAgICAgICAgICBpbnQgZHggPSAoaW50KSAoZXZlbnQuZ2V0UmF3WCgp
-          IC0gdG91Y2hYKTsKICAgICAgICAgICAgICAgICAgICBpbnQgZHkgPSAoaW50KSAoZXZlbnQuZ2V0UmF3WSgpIC0gdG91Y2hZKTsK
-          ICAgICAgICAgICAgICAgICAgICBpZiAoTWF0aC5hYnMoZHgpICsgTWF0aC5hYnMoZHkpID4gZHAoNikpIG1vdmVkID0gdHJ1ZTsK
-          ICAgICAgICAgICAgICAgICAgICBkb2NrUGFyYW1zLnggPSBNYXRoLm1heCgwLCBzdGFydFggLSBkeCk7CiAgICAgICAgICAgICAg
-          ICAgICAgZG9ja1BhcmFtcy55ID0gTWF0aC5tYXgoMCwgc3RhcnRZICsgZHkpOwogICAgICAgICAgICAgICAgICAgIGlmIChkb2Nr
-          ICE9IG51bGwpIHdpbmRvd01hbmFnZXIudXBkYXRlVmlld0xheW91dChkb2NrLCBkb2NrUGFyYW1zKTsKICAgICAgICAgICAgICAg
-          ICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgICAgIGlmIChldmVudC5nZXRBY3Rpb24oKSA9
-          PSBNb3Rpb25FdmVudC5BQ1RJT05fVVApIHsKICAgICAgICAgICAgICAgICAgICBpZiAoIW1vdmVkKSBzZXRBdXRvUGxheSghYXV0
-          b1BsYXkpOwogICAgICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICAgICAg
-          cmV0dXJuIHRydWU7CiAgICAgICAgICAgIH0KICAgICAgICB9KTsKICAgIH0KCg==
-          """)
-          turn_method = dec("""
-          ICAgIC8qKgogICAgICogSXQgaXMgbXkgdHVybiBvbmx5IHdoZW4gdGhlIHN0cmlrZXIgc2xpZGVyIHVuZGVyIHRoZSBib2FyZCBp
-          cyBicmlnaHQgd29vZCBjb2xvdXJlZC4gT24gdGhlIG90aGVyCiAgICAgKiBwbGF5ZXIncyB0dXJuIHRoZSBnYW1lIGRpbXMgaXQg
-          KGRhcmsgcHVycGxlKSwgYW5kIG5vIGxpbmVzIG11c3QgYmUgZHJhd24gYW5kIG5vIHNob3QgdGFrZW4gdGhlbi4KICAgICAqLwog
-          ICAgcHJpdmF0ZSBzdGF0aWMgYm9vbGVhbiBpc015VHVybihCaXRtYXAgYm1wLCBDYXJyb21Cb2FyZEFuYWx5emVyLkFuYWx5c2lz
-          IGEpIHsKICAgICAgICBpbnQgdyA9IGJtcC5nZXRXaWR0aCgpOwogICAgICAgIGludCBoID0gYm1wLmdldEhlaWdodCgpOwogICAg
-          ICAgIGZsb2F0IGJhc2UgPSBNYXRoLm1pbihhLmJvYXJkLndpZHRoKCksIGEuYm9hcmQuaGVpZ2h0KCkpOwogICAgICAgIGludCBj
-          eSA9IE1hdGgucm91bmQoYS5ib2FyZC5ib3R0b20gKyAwLjM2ZiAqIGJhc2UpOwogICAgICAgIGludCB4MCA9IE1hdGgucm91bmQo
-          MC4yMmYgKiB3KTsKICAgICAgICBpbnQgeDEgPSBNYXRoLnJvdW5kKDAuNzhmICogdyk7CiAgICAgICAgaW50IG4gPSBNYXRoLm1h
-          eCgxLCAoeDEgLSB4MCkgLyA0ICsgMSk7CiAgICAgICAgZm9yIChpbnQgeSA9IGN5IC0gMTY7IHkgPD0gY3kgKyAxNjsgeSArPSAy
-          KSB7CiAgICAgICAgICAgIGlmICh5IDwgMCB8fCB5ID49IGgpIGNvbnRpbnVlOwogICAgICAgICAgICBpbnRbXSBycyA9IG5ldyBp
-          bnRbbl07CiAgICAgICAgICAgIGludFtdIGdzID0gbmV3IGludFtuXTsKICAgICAgICAgICAgaW50IGMgPSAwOwogICAgICAgICAg
-          ICBmb3IgKGludCB4ID0geDA7IHggPCB4MSAmJiBjIDwgbjsgeCArPSA0KSB7CiAgICAgICAgICAgICAgICBpbnQgcHggPSBibXAu
-          Z2V0UGl4ZWwoeCwgeSk7CiAgICAgICAgICAgICAgICByc1tjXSA9IENvbG9yLnJlZChweCk7CiAgICAgICAgICAgICAgICBnc1tj
-          XSA9IENvbG9yLmdyZWVuKHB4KTsKICAgICAgICAgICAgICAgIGMrKzsKICAgICAgICAgICAgfQogICAgICAgICAgICBqYXZhLnV0
-          aWwuQXJyYXlzLnNvcnQocnMsIDAsIGMpOwogICAgICAgICAgICBqYXZhLnV0aWwuQXJyYXlzLnNvcnQoZ3MsIDAsIGMpOwogICAg
-          ICAgICAgICBpZiAoYyA+IDAgJiYgcnNbYyAvIDJdID4gMTUwICYmIGdzW2MgLyAyXSA+IDg1KSByZXR1cm4gdHJ1ZTsKICAgICAg
-          ICB9CiAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgfQoK
-          """)
+          import re, sys
 
-          d = "app/src/main/java/com/aimai/max/assistant/"
-          ov_path = d + "AssistantOverlayService.java"
-          sp_path = d + "ScanPipeline.java"
-          ov = open(ov_path, encoding="utf-8").read()
-          sp = open(sp_path, encoding="utf-8").read()
+          BASE = "app/src/main/java/com/aimai/max/assistant/"
+          PROTECTED = ("LicenseActivity", "LicenseManager", "AndroidManifest")
 
-          if "buildAutoChip(bubbleParams)" in ov:
-              print("already applied")
-              raise SystemExit(0)
 
-          dock_code = (
-              "        dock = new LinearLayout(this);\n"
-              "        dock.setOrientation(LinearLayout.VERTICAL);\n"
-              "        dock.setGravity(Gravity.CENTER_HORIZONTAL);\n"
-              "        buildAutoChip(bubbleParams);\n"
-              "        dock.addView(autoChip, new LinearLayout.LayoutParams(dp(46), dp(40)));\n"
-              "        LinearLayout.LayoutParams bubbleLp = new LinearLayout.LayoutParams(dp(46), dp(46));\n"
-              "        bubbleLp.topMargin = dp(2);\n"
-              "        dock.addView(bubble, bubbleLp);\n"
-              "        windowManager.addView(dock, bubbleParams);\n"
-          )
+          def sub_once(src, old, new, label):
+              if src.count(old) == 1:
+                  return src.replace(old, new)
+              pat = r"\s+".join(re.escape(tok) for tok in old.split())
+              found = re.findall(pat, src)
+              if len(found) != 1:
+                  raise SystemExit("ANCHOR PROBLEM (" + str(len(found)) + " matches) for " + label + ": " + old[:90])
+              return re.sub(pat, lambda m: new, src, count=1)
 
-          # plain replacements: (old, new, times)
-          ov_pairs = [
-              ("    private LinearLayout autoChip;\n    private View autoDot;\n",
-               "    private LinearLayout autoChip;\n    private View autoDot;\n    private LinearLayout dock;\n    private TextView autoSymbol;\n", 1),
-              ("                dp(54), dp(54),\n",
-               "                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,\n", 1),
-              ("        windowManager.addView(bubble, bubbleParams);\n", dock_code, 1),
-              ("if (bubble != null) windowManager.updateViewLayout(bubble, bubbleParams);",
-               "if (dock != null) windowManager.updateViewLayout(dock, bubbleParams);", 1),
-              ("        windowManager.addView(panel, params);\n        buildAutoChip();\n        applyGameVisibility();\n",
-               "        windowManager.addView(panel, params);\n        applyGameVisibility();\n", 1),
-              ("        if (autoChip != null) autoChip.setVisibility(gameForeground ? View.VISIBLE : View.GONE);\n",
-               "        if (dock != null) dock.setVisibility(gameForeground ? View.VISIBLE : View.GONE);\n", 1),
-              ("        if (autoChip != null) autoChip.setVisibility(View.GONE);\n",
-               "        if (dock != null) dock.setVisibility(View.GONE);\n", 1),
-              ("        if (autoChip != null) autoChip.setVisibility(View.VISIBLE);\n",
-               "        if (dock != null) dock.setVisibility(View.VISIBLE);\n", 1),
-              ("        if (autoChip != null && windowManager != null) {\n"
-               "            try { windowManager.removeView(autoChip); } catch (IllegalArgumentException ignored) {}\n"
-               "            autoChip = null;\n"
-               "        }\n",
-               "        if (dock != null && windowManager != null) {\n"
-               "            try { windowManager.removeView(dock); } catch (IllegalArgumentException ignored) {}\n"
-               "            dock = null;\n"
-               "            autoChip = null;\n"
-               "        }\n", 1),
-              ("bubble.setBackground(shape(accent, 28));", "bubble.setBackground(shape(accent, 10));", 2),
-              ('"PULL".equals(settings().getString("swipe_mode", "FORWARD"))', "true", 1),
-          ]
-          for old, new, times in ov_pairs:
-              found = ov.count(old)
-              assert found == times, "overlay: anchor found " + str(found) + " times (need " + str(times) + "), nothing changed: " + old[:80]
 
-          # slices
-          a = ov.find("    private void refreshAutoChip() {\n")
-          b = ov.find("    private void createPanel() {\n")
-          assert a > 0 and b > a, "chip methods not found, nothing changed"
-          s_start = '        col.addView(sectionTitle("SWIPE DIRECTION"));\n'
-          s_end = '        col.addView(sectionTitle("POWER"));\n'
-          assert ov.count(s_start) == 1 and ov.count(s_end) == 1 and ov.find(s_start) < ov.find(s_end), \
-              "swipe buttons block not found, nothing changed"
+          def edit(name, marker, pairs):
+              assert not any(p in name for p in PROTECTED)
+              path = BASE + name
+              src = open(path, encoding="utf-8").read()
+              if marker in src:
+                  print(name + ": already applied")
+                  return None
+              for i, (old, new) in enumerate(pairs):
+                  src = sub_once(src, old, new, name + "#" + str(i))
+              return path, src
 
-          # pipeline
-          sp_pairs = [
-              ("    private static float[] normalizePaths(float[] raw, float fw, float fh) {\n",
-               turn_method + "    private static float[] normalizePaths(float[] raw, float fw, float fh) {\n", 1),
-              ("        if (striker != null && result.board.detected) {\n            markMine(ctx, bmp, result);\n",
-               "        boolean myTurn = result.board.detected && isMyTurn(bmp, result);\n"
-               "        if (striker != null && result.board.detected && myTurn) {\n            markMine(ctx, bmp, result);\n", 1),
-          ]
-          for old, new, times in sp_pairs:
-              found = sp.count(old)
-              assert found == times, "pipeline: anchor found " + str(found) + " times (need " + str(times) + "), nothing changed: " + old[:80]
 
-          # all anchors are there: now change
-          ov = ov[:a] + chip_methods + ov[b:]
-          i = ov.find(s_start)
-          j = ov.find(s_end)
-          ov = ov[:i] + ov[j:]
-          for old, new, times in ov_pairs:
-              ov = ov.replace(old, new)
-          for old, new, times in sp_pairs:
-              sp = sp.replace(old, new)
-          open(ov_path, "w", encoding="utf-8").write(ov)
-          open(sp_path, "w", encoding="utf-8").write(sp)
-          print("edited overlay and pipeline")
+          jobs = []
+
+          # ---------------------------------------------------------------- CarromSim: deep pocket + open mouth
+          jobs.append(edit("CarromSim.java", "strikerPotR2", [
+              ("float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);",
+               "// A coin only counts as potted when its centre gets DEEP into the hole (not when it just touches the rim).\n"
+               "        float potR2 = (pocketR * 0.62f) * (pocketR * 0.62f);\n"
+               "        // The striker is treated as potted much earlier, so a shot that could foul is never chosen.\n"
+               "        float strikerPotR2 = (pocketR * 0.95f) * (pocketR * 0.95f);\n"
+               "        float mouthR2 = pocketR * pocketR;"),
+              ("// walls",
+               "// walls are open where the pocket hole is, so a coin can really slide into the hole\n"
+               "                    boolean inMouth = false;\n"
+               "                    for (int pm = 0; pm < pocketX.length; pm++) {\n"
+               "                        float mx = a.x - pocketX[pm], my = a.y - pocketY[pm];\n"
+               "                        if (mx * mx + my * my < mouthR2) { inMouth = true; break; }\n"
+               "                    }"),
+              ("if (a.x - a.r < left) {", "if (!inMouth && a.x - a.r < left) {"),
+              ("else if (a.x + a.r > right) {", "else if (!inMouth && a.x + a.r > right) {"),
+              ("if (a.y - a.r < top) {", "if (!inMouth && a.y - a.r < top) {"),
+              ("else if (a.y + a.r > bottom) {", "else if (!inMouth && a.y + a.r > bottom) {"),
+              ("if (dx * dx + dy * dy < potR2) {",
+               "if (dx * dx + dy * dy < (a.owner == STRIKER ? strikerPotR2 : potR2)) {"),
+          ]))
+
+          # ---------------------------------------------------------------- Planner: aim at the deep centre of the hole
+          jobs.append(edit("CarromShotPlanner.java", "deepPocket", [
+              ("for (Pocket p : a.pockets) {\n                    float tx = p.x - t.x, ty = p.y - t.y;",
+               "for (Pocket rawPocket : a.pockets) {\n"
+               "                    Pocket p = deepPocket(rawPocket, L, T, R, B);\n"
+               "                    float tx = p.x - t.x, ty = p.y - t.y;"),
+              ("private static Shot make(int kind, Piece t, Pocket p,",
+               "/** The point a coin is aimed at: the middle of the hole, a little towards the corner, never the rim. */\n"
+               "    private static Pocket deepPocket(Pocket p, float L, float T, float R, float B) {\n"
+               "        float cx = (L + R) / 2f, cy = (T + B) / 2f;\n"
+               "        float dx = p.x - cx, dy = p.y - cy;\n"
+               "        float len = (float) Math.sqrt(dx * dx + dy * dy);\n"
+               "        if (len < 1f) return p;\n"
+               "        float push = 0.15f * p.radius;\n"
+               "        return new Pocket(p.x + dx / len * push, p.y + dy / len * push, p.radius);\n"
+               "    }\n\n"
+               "    private static Shot make(int kind, Piece t, Pocket p,"),
+          ]))
+
+          # ---------------------------------------------------------------- ShotSearch: never the opponent's coin, safer cover
+          jobs.append(edit("ShotSearch.java", "2500f * r.otherPotted", [
+              ("float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted",
+               "float score = 100f * r.minePotted + queenW * r.queenPotted - 2500f * r.otherPotted"),
+              ("o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted;",
+               "o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 2500f * r.otherPotted;"),
+              ("- 0.6f * cand.cutAngleDeg", "- (coverMode ? 1.4f : 0.6f) * cand.cutAngleDeg"),
+              ("bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted;",
+               "bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted && r.otherPotted == 0;"),
+              ("ro.simScore += (coverMode ? 1.5f : 1f) * (240f * frac - 160f);",
+               "ro.simScore += (coverMode ? 2.5f : 1.3f) * (240f * frac - 160f);"),
+          ]))
+
+          # ---------------------------------------------------------------- ScanPipeline: never guess "all coins are mine"
+          jobs.append(edit("ScanPipeline.java", "iAmBlack", [
+              ("if (count == 0) {\n"
+               "            // the icon could not be matched: do not stand still, treat every coin as playable\n"
+               "            for (CarromBoardAnalyzer.Piece p : a.pieces) {\n"
+               "                if (p != a.striker && p.type != CarromBoardAnalyzer.PieceType.STRIKER) p.mine = true;\n"
+               "            }\n"
+               "        }",
+               "if (count == 0 && !\"ANY\".equals(mode)) {\n"
+               "            // The icon colour could not be matched. Decide by brightness: my icon darker than the\n"
+               "            // opponent's means I own the black coins. The opponent's coins are never treated as mine.\n"
+               "            float mineLum = 0.30f * mineHud[0] + 0.59f * mineHud[1] + 0.11f * mineHud[2];\n"
+               "            float oppLum = 0.30f * oppHud[0] + 0.59f * oppHud[1] + 0.11f * oppHud[2];\n"
+               "            boolean iAmBlack = mineLum < oppLum;\n"
+               "            for (CarromBoardAnalyzer.Piece p : a.pieces) {\n"
+               "                if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER) continue;\n"
+               "                p.mine = iAmBlack ? p.type == CarromBoardAnalyzer.PieceType.BLACK\n"
+               "                        : p.type == CarromBoardAnalyzer.PieceType.WHITE;\n"
+               "            }\n"
+               "        }"),
+          ]))
+
+          for j in jobs:
+              if j is None:
+                  continue
+              open(j[0], "w", encoding="utf-8").write(j[1])
+              print("edited " + j[0])
+          print("done")
           PYEND
 
       - name: Commit and push
@@ -181,7 +148,12 @@ jobs:
             echo "No changes to commit."
             exit 0
           fi
-          git commit -m "Joined floating buttons, lines only on my turn, swipe buttons removed"
+          if git diff --cached --name-only | grep -E 'LicenseActivity|LicenseManager|AndroidManifest'; then
+            echo "Protected file touched, stopping."
+            git reset
+            exit 1
+          fi
+          git commit -m "Accuracy: aim deep into the pocket hole, open pocket mouth in the simulator, never pot the opponent's coin"
           git push
 
       - name: Start APK build
