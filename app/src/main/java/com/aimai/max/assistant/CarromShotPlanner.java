@@ -178,7 +178,7 @@ public final class CarromShotPlanner {
                                 if (segDist(o.x, o.y, hx, hy, gx, gy) < o.radius + rs * 0.95f) blk++;
                             }
                             float score = d1 + d2 + tl * 1.5f + (1f - cos) * W * 1.5f + blk * W
-                                    + 0.45f * W + move + queenCost;
+                                    + 1.35f * W + move + queenCost;
                             out.add(make(2, t, p, sx, sy, hx, hy, gx, gy, hx, hy, cos, d1 + d2 + tl, blk, score, W));
                         }
                     }
@@ -232,7 +232,7 @@ public final class CarromShotPlanner {
                             if (segDist(o.x, o.y, hx, hy, p.x, p.y) < o.radius + rt * 0.95f) blk++;
                         }
                         float score = sl + (l1 + l2) * 1.5f + (1f - cos) * W * 1.5f + blk * W
-                                + 0.55f * W + move + queenCost;
+                                + 1.60f * W + move + queenCost;
                         out.add(make(1, t, p, sx, sy, cgx, cgy, cgx, cgy, hx, hy, cos, sl + l1 + l2, blk, score, W));
                     }
                 }
