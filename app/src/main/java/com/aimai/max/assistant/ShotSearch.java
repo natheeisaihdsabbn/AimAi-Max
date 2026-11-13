@@ -42,6 +42,24 @@ public final class ShotSearch {
         public int tried;
     }
 
+    static void preferDirectPotOutcomes(List<Outcome> outcomes) {
+        boolean directPotExists = false;
+        for (Outcome outcome : outcomes) {
+            if (outcome != null && outcome.shot != null && outcome.shot.kind == 0
+                    && outcome.potsSomething && !outcome.foulsStriker) {
+                directPotExists = true;
+                break;
+            }
+        }
+        if (!directPotExists) return;
+        for (int i = outcomes.size() - 1; i >= 0; i--) {
+            Outcome outcome = outcomes.get(i);
+            if (outcome == null || outcome.shot == null || outcome.shot.kind != 0) {
+                outcomes.remove(i);
+            }
+        }
+    }
+
     public static Result search(Analysis a, boolean anyCoin, boolean slide, long budgetMs, int maxCands) {
         Result result = new Result();
         if (a == null || a.striker == null || !a.board.detected || a.pockets.size() < 4) {
@@ -171,11 +189,14 @@ public final class ShotSearch {
                 boolean fastRisk = rr.strikerPotted || rr.strikerMinPocket < pr * 2.95f;
                 if (r.strikerPotted || rr.strikerPotted || nearStrikerPocket || fastRisk) continue;
                 if (coverMode && r.minePotted == 0) continue;
+                // Strongly prefer a direct line. Bank shots are only a fallback when no
+                // direct route actually pots one of our coins in the physics simulation.
+                float routePenalty = cand.kind == 0 ? 0f : (cand.kind == 1 ? 240f : 320f);
                 float score = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted
                         - ((nearStrikerPocket || fastRisk) ? 1500f : 0f)
                         - (r.strikerPotted ? 2000f : 0f)
-                        - 0.02f * cand.score - 0.6f * cand.cutAngleDeg + (cand.cutAngleDeg > 30f ? 9f : 3f) * level
-                        - 45f * cand.blockers - (cand.kind != 0 ? (coverMode ? 120f : 35f) : 0f);
+                        - 0.02f * cand.score - 1.0f * cand.cutAngleDeg - 8f * level
+                        - 45f * cand.blockers - routePenalty;
                 if (bestForShot == null || score > bestForShot.simScore) {
                     bestForShot = new Outcome();
                     bestForShot.shot = cand;
@@ -204,13 +225,20 @@ public final class ShotSearch {
                 Outcome o = new Outcome();
                 o.shot = cand;
                 o.level = 0;
-                o.simScore = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted;
+                o.simScore = (coverMode ? 10000f : 100f) * r.minePotted + (coverMode ? 0f : queenW * r.queenPotted) - 2500f * r.otherPotted
+                        - 0.02f * cand.score - 1.0f * cand.cutAngleDeg
+                        - (cand.kind == 0 ? 0f : (cand.kind == 1 ? 240f : 320f))
+                        - 45f * cand.blockers;
                 o.potsSomething = r.minePotted + r.queenPotted > 0 && r.otherPotted == 0;
                 outcomes.add(o);
                 break;
             }
         }
         if (outcomes.isEmpty()) return result;
+
+        // If at least one simulated direct shot pots a legal coin, discard all bank routes.
+        // This prevents the bot from choosing a flashy wall/cut route over a valid straight shot.
+        preferDirectPotOutcomes(outcomes);
 
         Collections.sort(outcomes, new Comparator<Outcome>() {
             @Override public int compare(Outcome x, Outcome y) { return Float.compare(y.simScore, x.simScore); }
