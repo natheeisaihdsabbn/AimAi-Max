@@ -54,14 +54,23 @@ public class ScanPipeline {
     }
 
     /** How many of my coins (not the red) are on the board, told apart by the colour of my coin icon. */
-    private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a, float mineX) {
+    private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a, float mineX, String mode) {
         int[] mh = cvHudRgb(bmp, mineX), oh = cvHudRgb(bmp, mineX == 0.111f ? 0.889f : 0.111f);
         int n = 0;
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
             if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER
                     || p.type == CarromBoardAnalyzer.PieceType.QUEEN) continue;
-            float dm = cvColorDist(p.rgb, mh), dop = cvColorDist(p.rgb, oh);
-            if (dm < dop && dm < 150f) n++;
+            if ("ANY".equals(mode)) {
+                if (p.type == CarromBoardAnalyzer.PieceType.WHITE
+                        || p.type == CarromBoardAnalyzer.PieceType.BLACK) n++;
+            } else if ("WHITE".equals(mode)) {
+                if (p.type == CarromBoardAnalyzer.PieceType.WHITE) n++;
+            } else if ("BLACK".equals(mode)) {
+                if (p.type == CarromBoardAnalyzer.PieceType.BLACK) n++;
+            } else {
+                float dm = cvColorDist(p.rgb, mh), dop = cvColorDist(p.rgb, oh);
+                if (dm < dop && dm < 150f) n++;
+            }
         }
         return n;
     }
@@ -355,8 +364,12 @@ public class ScanPipeline {
             coverDone = false;
             coverDropFrames = 0;
         } else {
-            float mineHudX = hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f;
-            int mineNow = cvMyCoins(bmp, result, mineHudX);
+            String coinMode = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
+                    .getString("my_coins", "AUTO");
+            float mineHudX = "AUTO".equals(coinMode)
+                    ? (hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f)
+                    : 0.111f;
+            int mineNow = cvMyCoins(bmp, result, mineHudX, coinMode);
             if (!redIconPrev) {
                 mineAtRed = mineNow;
                 coverDone = false;
