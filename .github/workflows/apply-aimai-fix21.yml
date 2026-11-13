@@ -9,134 +9,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   actions: write
 
 jobs:
-  apply:
+  verify:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: aimai-final-redesign
-
-      - name: Deep pocket target, open pocket mouth, never the opponent's coin
+      - name: Verify the actual source fixes
         run: |
-          python3 - <<'PYEND'
-          import re, sys
-
-          BASE = "app/src/main/java/com/aimai/max/assistant/"
-          PROTECTED = ("LicenseActivity", "LicenseManager", "AndroidManifest")
-
-
-          def sub_once(src, old, new, label):
-              if src.count(old) == 1:
-                  return src.replace(old, new)
-              pat = r"\s+".join(re.escape(tok) for tok in old.split())
-              found = re.findall(pat, src)
-              if len(found) != 1:
-                  raise SystemExit("ANCHOR PROBLEM (" + str(len(found)) + " matches) for " + label + ": " + old[:90])
-              return re.sub(pat, lambda m: new, src, count=1)
-
-
-          def edit(name, marker, pairs):
-              assert not any(p in name for p in PROTECTED)
-              path = BASE + name
-              src = open(path, encoding="utf-8").read()
-              if marker in src:
-                  print(name + ": already applied")
-                  return None
-              for i, (old, new) in enumerate(pairs):
-                  src = sub_once(src, old, new, name + "#" + str(i))
-              return path, src
-
-
-          jobs = []
-
-          # ---------------------------------------------------------------- CarromSim: deep pocket + open mouth
-          jobs.append(edit("CarromSim.java", "strikerPotR2", [
-              ("float potR2 = (pocketR * 0.92f) * (pocketR * 0.92f);",
-               "// A coin only counts as potted when its centre gets DEEP into the hole (not when it just touches the rim).\n"
-               "        float potR2 = (pocketR * 0.62f) * (pocketR * 0.62f);\n"
-               "        // The striker is treated as potted much earlier, so a shot that could foul is never chosen.\n"
-               "        float strikerPotR2 = (pocketR * 0.95f) * (pocketR * 0.95f);\n"
-               "        float mouthR2 = pocketR * pocketR;"),
-              ("// walls",
-               "// walls are open where the pocket hole is, so a coin can really slide into the hole\n"
-               "                    boolean inMouth = false;\n"
-               "                    for (int pm = 0; pm < pocketX.length; pm++) {\n"
-               "                        float mx = a.x - pocketX[pm], my = a.y - pocketY[pm];\n"
-               "                        if (mx * mx + my * my < mouthR2) { inMouth = true; break; }\n"
-               "                    }"),
-              ("if (a.x - a.r < left) {", "if (!inMouth && a.x - a.r < left) {"),
-              ("else if (a.x + a.r > right) {", "else if (!inMouth && a.x + a.r > right) {"),
-              ("if (a.y - a.r < top) {", "if (!inMouth && a.y - a.r < top) {"),
-              ("else if (a.y + a.r > bottom) {", "else if (!inMouth && a.y + a.r > bottom) {"),
-              ("if (dx * dx + dy * dy < potR2) {",
-               "if (dx * dx + dy * dy < (a.owner == STRIKER ? strikerPotR2 : potR2)) {"),
-          ]))
-
-          # ---------------------------------------------------------------- ShotSearch: never the opponent's coin, safer cover
-          jobs.append(edit("ShotSearch.java", "2500f * r.otherPotted", [
-              ("float score = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted",
-               "float score = 100f * r.minePotted + queenW * r.queenPotted - 2500f * r.otherPotted"),
-              ("o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 120f * r.otherPotted;",
-               "o.simScore = 100f * r.minePotted + queenW * r.queenPotted - 2500f * r.otherPotted;"),
-              ("- 0.6f * cand.cutAngleDeg", "- (coverMode ? 1.4f : 0.6f) * cand.cutAngleDeg"),
-              ("bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted;",
-               "bestForShot.potsSomething = r.minePotted + r.queenPotted > 0 && !r.strikerPotted && r.otherPotted == 0;"),
-              ("ro.simScore += (coverMode ? 1.5f : 1f) * (240f * frac - 160f);",
-               "ro.simScore += (coverMode ? 2.5f : 1.3f) * (240f * frac - 160f);"),
-          ]))
-
-          # ---------------------------------------------------------------- ScanPipeline: never guess "all coins are mine"
-          jobs.append(edit("ScanPipeline.java", "iAmBlack", [
-              ("if (count == 0) {\n"
-               "            // the icon could not be matched: do not stand still, treat every coin as playable\n"
-               "            for (CarromBoardAnalyzer.Piece p : a.pieces) {\n"
-               "                if (p != a.striker && p.type != CarromBoardAnalyzer.PieceType.STRIKER) p.mine = true;\n"
-               "            }\n"
-               "        }",
-               "if (count == 0 && !\"ANY\".equals(mode)) {\n"
-               "            // The icon colour could not be matched. Decide by brightness: my icon darker than the\n"
-               "            // opponent's means I own the black coins. The opponent's coins are never treated as mine.\n"
-               "            float mineLum = 0.30f * mineHud[0] + 0.59f * mineHud[1] + 0.11f * mineHud[2];\n"
-               "            float oppLum = 0.30f * oppHud[0] + 0.59f * oppHud[1] + 0.11f * oppHud[2];\n"
-               "            boolean iAmBlack = mineLum < oppLum;\n"
-               "            for (CarromBoardAnalyzer.Piece p : a.pieces) {\n"
-               "                if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER) continue;\n"
-               "                p.mine = iAmBlack ? p.type == CarromBoardAnalyzer.PieceType.BLACK\n"
-               "                        : p.type == CarromBoardAnalyzer.PieceType.WHITE;\n"
-               "            }\n"
-               "        }"),
-          ]))
-
-          for j in jobs:
-              if j is None:
-                  continue
-              open(j[0], "w", encoding="utf-8").write(j[1])
-              print("edited " + j[0])
-          print("done")
-          PYEND
-
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@users.noreply.github.com"
-          git add -A app
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-          if git diff --cached --name-only | grep -E 'LicenseActivity|LicenseManager|AndroidManifest'; then
-            echo "Protected file touched, stopping."
-            git reset
-            exit 1
-          fi
-          git commit -m "Accuracy: aim deep into the pocket hole, open pocket mouth in the simulator, never pot the opponent's coin"
-          git push
-
+          set -euo pipefail
+          grep -Fq 'strikerPotR2' app/src/main/java/com/aimai/max/assistant/CarromSim.java
+          grep -Fq 'boolean inMouth = false' app/src/main/java/com/aimai/max/assistant/CarromSim.java
+          grep -Fq '2500f * r.otherPotted' app/src/main/java/com/aimai/max/assistant/ShotSearch.java
+          grep -Fq 'r.otherPotted == 0' app/src/main/java/com/aimai/max/assistant/ShotSearch.java
+          grep -Fq 'boolean iAmBlack = mineLum < oppLum' app/src/main/java/com/aimai/max/assistant/ScanPipeline.java
+          echo 'All deep-pocket accuracy source checks passed.'
       - name: Start APK build
         env:
           GH_TOKEN: ${{ github.token }}
