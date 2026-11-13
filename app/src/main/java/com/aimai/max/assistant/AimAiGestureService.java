@@ -222,7 +222,14 @@ public class AimAiGestureService extends AccessibilityService {
 
         float sx = clamp(x, 2, w - 2), sy = clamp(y, 2, h - 2);          // exact striker position
         float dir = pullBack ? -1f : 1f;
-        float ex = clamp(x + dir * ux * pull, 2, w - 2), ey = clamp(y + dir * uy * pull, 2, h - 2);
+        ux *= dir;
+        uy *= dir;
+        // Shorten the drag before it reaches a screen edge. Clamping x and y independently
+        // changes the vector angle, which made the real swipe disagree with the simulated aim.
+        float maxX = ux > 0f ? (w - 2f - sx) / ux : (ux < 0f ? (2f - sx) / ux : Float.POSITIVE_INFINITY);
+        float maxY = uy > 0f ? (h - 2f - sy) / uy : (uy < 0f ? (2f - sy) / uy : Float.POSITIVE_INFINITY);
+        pull = Math.max(0f, Math.min(pull, Math.min(maxX, maxY)));
+        float ex = sx + ux * pull, ey = sy + uy * pull;
         if (Math.hypot(ex - sx, ey - sy) < 8f) return false;
 
         Path path = new Path();
