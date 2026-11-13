@@ -166,33 +166,22 @@ public class ScanPipeline {
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
             if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER) continue;
             boolean mine;
-            if ("ANY".equals(mode)) {
-                mine = true;
-            } else if ("BLACK".equals(mode)) {
+            if ("BLACK".equals(mode)) {
                 mine = p.type == CarromBoardAnalyzer.PieceType.BLACK;
             } else if ("WHITE".equals(mode)) {
                 mine = p.type == CarromBoardAnalyzer.PieceType.WHITE;
             } else {
                 float dm = colorDist(p.rgb, mineHud);
                 float dop = colorDist(p.rgb, oppHud);
-                mine = p.type != CarromBoardAnalyzer.PieceType.QUEEN && dm < dop && dm < 150f;
+                // AUTO is deliberately conservative: an uncertain colour match is not ours.
+                // Missing a shot is safer than ever aiming at an opponent coin.
+                mine = p.type != CarromBoardAnalyzer.PieceType.QUEEN
+                        && dm + 24f < dop && dm < 125f;
             }
             p.mine = mine;
             if (mine) count++;
         }
-        if (count == 0 && "AUTO".equals(mode)) {
-            // If the HUD colour match fails, infer the side from the two HUD icon brightnesses.
-            // Never classify every coin as ours: that can make the planner pot the opponent's coins.
-            float mineLum = 0.30f * mineHud[0] + 0.59f * mineHud[1] + 0.11f * mineHud[2];
-            float oppLum = 0.30f * oppHud[0] + 0.59f * oppHud[1] + 0.11f * oppHud[2];
-            boolean iAmBlack = mineLum < oppLum;
-            for (CarromBoardAnalyzer.Piece p : a.pieces) {
-                if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER
-                        || p.type == CarromBoardAnalyzer.PieceType.QUEEN) continue;
-                p.mine = iAmBlack ? p.type == CarromBoardAnalyzer.PieceType.BLACK
-                        : p.type == CarromBoardAnalyzer.PieceType.WHITE;
-            }
-        }
+        // No brightness-based fallback: if ownership cannot be confirmed, do not take a shot.
     }
 
     // ------------------------------------------------------------------ output
