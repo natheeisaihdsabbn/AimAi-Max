@@ -86,11 +86,22 @@ public final class CarromSim {
                         a.vx = 0f;
                         a.vy = 0f;
                     }
-                    // Leave the wall open inside a pocket mouth so discs can enter it naturally.
+                    // A striker must fit through the opening before its centre can enter the mouth.
+                    // The detected pocket radius is the opening radius; a disc whose radius is too
+                    // large must keep colliding with the corner cushions instead of slipping into a jaw.
                     boolean inMouth = false;
                     for (int pm = 0; pm < pocketX.length; pm++) {
                         float mx = a.x - pocketX[pm], my = a.y - pocketY[pm];
-                        if (mx * mx + my * my < mouthR2) { inMouth = true; break; }
+                        float d2 = mx * mx + my * my;
+                        if (a.owner == STRIKER) {
+                            if (pocketR > a.r * 1.03f && d2 < mouthR2) {
+                                inMouth = true;
+                                break;
+                            }
+                        } else if (d2 < mouthR2) {
+                            inMouth = true;
+                            break;
+                        }
                     }
                     // walls
                     if (!inMouth && a.x - a.r < left) { a.x = left + a.r; a.vx = Math.abs(a.vx) * REST_WALL; }
@@ -101,7 +112,16 @@ public final class CarromSim {
                     for (int p = 0; p < pocketX.length; p++) {
                         float dx = a.x - pocketX[p], dy = a.y - pocketY[p];
                         if (a.owner == STRIKER && dx * dx + dy * dy < strikerMinD2) strikerMinD2 = dx * dx + dy * dy;
-                        if (dx * dx + dy * dy < (a.owner == STRIKER ? strikerPotR2 : potR2)) {
+                        float captureR;
+                        if (a.owner == STRIKER) {
+                            // Only the free clearance inside the hole can swallow the striker.
+                            // If the striker is wider than the detected opening, it cannot be potted.
+                            captureR = pocketR > a.r * 1.03f
+                                    ? Math.max(1f, pocketR - a.r * 0.92f) : 0f;
+                        } else {
+                            captureR = Math.max(2f, pocketR - a.r * 0.55f);
+                        }
+                        if (captureR > 0f && dx * dx + dy * dy < captureR * captureR) {
                             a.potted = true;
                             a.vx = 0f;
                             a.vy = 0f;
