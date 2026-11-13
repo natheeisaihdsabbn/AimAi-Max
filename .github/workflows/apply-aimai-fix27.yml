@@ -1,0 +1,73 @@
+name: Apply AimAi Max deeper pocket aim, stricter pot test, red cover end detection
+
+on:
+  push:
+    branches:
+      - aimai-final-redesign
+    paths:
+      - '.github/workflows/apply-aimai-fix27*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: aimai-final-redesign
+
+      - name: Aim deeper into the pocket, stricter pot test, heavy penalty for the other player's coin, cover end detection
+        run: |
+          cat > /tmp/p.b64 <<'B64END'
+          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
+          6syYZxcAAA==
+          B64END
+          base64 -d /tmp/p.b64 | gunzip > /tmp/p.py
+          python3 /tmp/p.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A app
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Deeper pocket aim, stricter pot test, other player's coin penalty, red cover end detection"
+          git push
+
+      - name: Start APK build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref aimai-final-redesign
