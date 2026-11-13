@@ -54,10 +54,7 @@ public class ScanPipeline {
     }
 
     /** How many of my coins (not the red) are on the board, told apart by the colour of my coin icon. */
-    private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a) {
-        String mode = "AUTO";
-        // Ownership mode is supplied by markMine; AUTO's side is inferred from the active HUD highlight.
-        float mineX = hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f;
+    private static int cvMyCoins(Bitmap bmp, CarromBoardAnalyzer.Analysis a, float mineX) {
         int[] mh = cvHudRgb(bmp, mineX), oh = cvHudRgb(bmp, mineX == 0.111f ? 0.889f : 0.111f);
         int n = 0;
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
@@ -358,7 +355,8 @@ public class ScanPipeline {
             coverDone = false;
             coverDropFrames = 0;
         } else {
-            int mineNow = cvMyCoins(bmp, result);
+            float mineHudX = hudActivity(bmp, 0.04f, 0.18f) >= hudActivity(bmp, 0.82f, 0.96f) ? 0.111f : 0.889f;
+            mineNow = cvMyCoins(bmp, result, mineHudX);
             if (!redIconPrev) {
                 mineAtRed = mineNow;
                 coverDone = false;
