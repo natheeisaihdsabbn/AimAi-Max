@@ -180,10 +180,17 @@ public class ScanPipeline {
             p.mine = mine;
             if (mine) count++;
         }
-        if (count == 0) {
-            // the icon could not be matched: do not stand still, treat every coin as playable
+        if (count == 0 && "AUTO".equals(mode)) {
+            // If the HUD colour match fails, infer the side from the two HUD icon brightnesses.
+            // Never classify every coin as ours: that can make the planner pot the opponent's coins.
+            float mineLum = 0.30f * mineHud[0] + 0.59f * mineHud[1] + 0.11f * mineHud[2];
+            float oppLum = 0.30f * oppHud[0] + 0.59f * oppHud[1] + 0.11f * oppHud[2];
+            boolean iAmBlack = mineLum < oppLum;
             for (CarromBoardAnalyzer.Piece p : a.pieces) {
-                if (p != a.striker && p.type != CarromBoardAnalyzer.PieceType.STRIKER) p.mine = true;
+                if (p == a.striker || p.type == CarromBoardAnalyzer.PieceType.STRIKER
+                        || p.type == CarromBoardAnalyzer.PieceType.QUEEN) continue;
+                p.mine = iAmBlack ? p.type == CarromBoardAnalyzer.PieceType.BLACK
+                        : p.type == CarromBoardAnalyzer.PieceType.WHITE;
             }
         }
     }
