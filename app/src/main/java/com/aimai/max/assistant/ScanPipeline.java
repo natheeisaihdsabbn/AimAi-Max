@@ -363,10 +363,11 @@ public class ScanPipeline {
                 cur = cacheCur;
                 best = cacheBest;
             } else if (looseFrameCount >= 1) {
-                cur = ShotSearch.search(result, false, false, 130L, 32);
-                // slide the striker only when the current spot has no clean potting shot (keeps the turn under a second)
-                boolean needSlide = cur.best == null || !cur.best.potsSomething || cur.best.simScore < 60f;
-                best = (slideOn && needSlide) ? ShotSearch.search(result, false, true, 150L, 32) : null;
+                // Always scan the complete legal baseline before choosing the shot. A valid
+                // current-position pot does not mean it is the best angle; the baseline may offer
+                // a much straighter, clearer route to the same coin and pocket.
+                cur = ShotSearch.search(result, false, false, 110L, 32);
+                best = slideOn ? ShotSearch.search(result, false, true, 260L, 32) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;
