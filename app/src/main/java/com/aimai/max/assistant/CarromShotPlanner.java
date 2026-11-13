@@ -111,9 +111,11 @@ public final class CarromShotPlanner {
                     float tx = p.x - t.x, ty = p.y - t.y;
                     float tl = (float) Math.sqrt(tx * tx + ty * ty);
                     if (tl < 1f) continue;
+                    if (!pocketApproachClear(t.x, t.y, p.x, p.y, rt, L, T, R, B)) continue;
                     float ux = tx / tl, uy = ty / tl;
-                    float gx = t.x - ux * (rt + rs);
-                    float gy = t.y - uy * (rt + rs);
+                    float[] ghost = ghostBall(t.x, t.y, p.x, p.y, rt, rs);
+                    float gx = ghost[0];
+                    float gy = ghost[1];
                     boolean ghostInside = gx >= L + rs && gx <= R - rs && gy >= T + rs && gy <= B - rs;
 
                     int coinLegBlockers = 0;
@@ -212,8 +214,9 @@ public final class CarromShotPlanner {
                         // a "bank" right next to the pocket is just a straight shot, skip it
                         if (dist(hx, hy, p.x, p.y) < 0.2f * W) continue;
                         float bx = dx / dl, by = dy / dl;
-                        float cgx = t.x - bx * (rt + rs);
-                        float cgy = t.y - by * (rt + rs);
+                        float[] bankGhost = ghostBall(t.x, t.y, hx, hy, rt, rs);
+                        float cgx = bankGhost[0];
+                        float cgy = bankGhost[1];
                         if (cgx < L + rs || cgx > R - rs || cgy < T + rs || cgy > B - rs) continue;
                         float vx0 = cgx - sx, vy0 = cgy - sy;
                         float sl = (float) Math.sqrt(vx0 * vx0 + vy0 * vy0);
@@ -222,6 +225,7 @@ public final class CarromShotPlanner {
                         float cos = vx * bx + vy * by;
                         boolean awayFromBaseline = !(sy > T + 0.5f * a.board.height()) || vy <= -0.10f;
                         if (cos < 0.10f || !awayFromBaseline) continue;
+                        if (!pocketApproachClear(hx, hy, p.x, p.y, rt, L, T, R, B)) continue;
                         float l1 = dist(hx, hy, t.x, t.y);
                         float l2 = dist(p.x, p.y, hx, hy);
                         int blk = 0;
@@ -321,8 +325,10 @@ public final class CarromShotPlanner {
         if (pk == null) return;
         float vx = (near.x - s.x) / nearD;
         float vy = (near.y - s.y) / nearD;
-        float gx = near.x - vx * (near.radius + s.radius);
-        float gy = near.y - vy * (near.radius + s.radius);
+        float[] fallbackGhost = ghostBall(near.x, near.y, near.x + vx, near.y + vy,
+                near.radius, s.radius);
+        float gx = fallbackGhost[0];
+        float gy = fallbackGhost[1];
         float ux = pk.x - near.x, uy = pk.y - near.y;
         float uLen = (float) Math.sqrt(ux * ux + uy * uy);
         if (uLen < 1f) return;
@@ -353,6 +359,34 @@ public final class CarromShotPlanner {
         to.score = from.score;
         to.power = from.power;
         to.blockers = from.blockers;
+    }
+
+    /** Pixel-space ghost-ball centre: coin centre minus the pocket direction times both radii. */
+    static float[] ghostBall(float coinX, float coinY, float pocketX, float pocketY,
+                             float coinRadius, float strikerRadius) {
+        float dx = pocketX - coinX, dy = pocketY - coinY;
+        float len = (float) Math.hypot(dx, dy);
+        if (len < 1e-4f) return new float[]{coinX, coinY};
+        float contactDistance = Math.max(0f, coinRadius) + Math.max(0f, strikerRadius);
+        return new float[]{coinX - dx / len * contactDistance,
+                coinY - dy / len * contactDistance};
+    }
+
+    /**
+     * Check the coin centre's approach corridor before it enters the pocket opening.
+     * The last 20% is excluded because the hole itself opens through the two corner rails.
+     */
+    static boolean pocketApproachClear(float ax, float ay, float bx, float by, float coinRadius,
+                                       float left, float top, float right, float bottom) {
+        float required = Math.max(1f, coinRadius * 0.92f);
+        for (int i = 0; i <= 8; i++) {
+            float t = i * 0.10f;
+            float x = ax + (bx - ax) * t;
+            float y = ay + (by - ay) * t;
+            float clearance = Math.min(Math.min(x - left, right - x), Math.min(y - top, bottom - y));
+            if (clearance < required) return false;
+        }
+        return true;
     }
 
     private static float dist(float ax, float ay, float bx, float by) {
