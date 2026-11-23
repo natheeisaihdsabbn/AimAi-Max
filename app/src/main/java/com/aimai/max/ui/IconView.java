@@ -11,7 +11,7 @@ import android.view.View;
 public class IconView extends View {
     public static final int HOME = 0, CROWN = 1, TROPHY = 2, GEAR = 3, CHAT = 4,
             INFO = 5, CROSSHAIR = 6, PLAY = 7, SLIDERS = 8, SHARE = 9, TRASH = 10,
-            DOC = 11, CHIP = 12, ACCESS = 13, LAYERS = 14;
+            DOC = 11, CHIP = 12, ACCESS = 13, LAYERS = 14, PEOPLE = 15, REFRESH = 16;
 
     private final int type;
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -147,6 +147,18 @@ public class IconView extends View {
             case LAYERS:
                 path.moveTo(12, 3); path.lineTo(21, 8); path.lineTo(12, 13); path.lineTo(3, 8); path.close();
                 path.moveTo(3, 12.5f); path.lineTo(12, 17.5f); path.lineTo(21, 12.5f);
+                canvas.drawPath(path, p);
+                break;
+            case PEOPLE:
+                canvas.drawCircle(9, 8, 3, p); canvas.drawCircle(17, 9, 2.5f, p);
+                path.moveTo(3.5f, 19); path.quadTo(4, 13, 9, 13); path.quadTo(14, 13, 14.5f, 19);
+                path.moveTo(14, 14); path.quadTo(19, 13, 20.5f, 18);
+                canvas.drawPath(path, p);
+                break;
+            case REFRESH:
+                canvas.drawArc(4, 4, 20, 20, 42, 285, false, p);
+                path.moveTo(16, 3); path.lineTo(20, 4); path.lineTo(19, 8);
+                path.moveTo(8, 21); path.lineTo(4, 20); path.lineTo(5, 16);
                 canvas.drawPath(path, p);
                 break;
             default:

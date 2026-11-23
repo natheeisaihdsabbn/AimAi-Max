@@ -68,6 +68,22 @@ public class ShotSearchPreferenceTest {
                 ShotSearch.targetPottedAt(result, 0, 40f, 40f, 28f));
     }
 
+    @Test
+    public void anotherPottedCoinCannotValidateTheSelectedTarget() {
+        CarromSim.Result result = new CarromSim.Result();
+        CarromSim.Disc selected = new CarromSim.Disc();
+        selected.potted = false;
+        CarromSim.Disc other = new CarromSim.Disc();
+        other.potted = true;
+        other.x = 40f; other.y = 40f;
+        result.discs = new ArrayList<>();
+        result.discs.add(selected);
+        result.discs.add(other);
+        assertFalse("a different coin falling into the selected pocket is not a successful shot",
+                ShotSearch.targetPottedAt(result, 0, 40f, 40f, 28f));
+        assertTrue(ShotSearch.targetPottedAt(result, 1, 40f, 40f, 28f));
+    }
+
     private static ShotSearch.Outcome outcome(int kind, boolean potsSomething) {
         Shot shot = new Shot();
         shot.kind = kind;

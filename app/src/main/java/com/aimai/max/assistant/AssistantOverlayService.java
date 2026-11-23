@@ -184,7 +184,7 @@ public class AssistantOverlayService extends Service {
                     float aimY = intent.getFloatExtra("curAimY", Float.NaN);
                     if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
                             || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
-                    boolean pullBack = settings().getBoolean("reverse_shot_direction", true);
+                    boolean pullBack = settings().getBoolean("reverse_shot_direction", false);
                     float powerMul = settings().getInt("power_pct", 100) / 100f
                             * intent.getFloatExtra("curPowerMul", 1f);
                     AimAiGestureService.swipeDurationMs = humanStyle()
@@ -308,6 +308,12 @@ public class AssistantOverlayService extends Service {
         super.onCreate();
         android.content.SharedPreferences prefs =
                 getSharedPreferences("aimai_settings", MODE_PRIVATE);
+        // The previous default reversed the planner's target vector. Migrate existing installs
+        // once to the direct aim direction; the in-game toggle remains available for verification.
+        if (!prefs.getBoolean("direction_default_v2", false)) {
+            prefs.edit().putBoolean("reverse_shot_direction", false)
+                    .putBoolean("direction_default_v2", true).apply();
+        }
         // A new session always starts with striker sliding allowed.
         prefs.edit().putBoolean("slide_enabled", true).apply();
         String[] savedStyles = {
@@ -866,7 +872,7 @@ public class AssistantOverlayService extends Service {
         powerRow.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(34)));
         col.addView(powerRow);
 
-        Switch reverseDirection = accentSwitch(settings().getBoolean("reverse_shot_direction", true));
+        Switch reverseDirection = accentSwitch(settings().getBoolean("reverse_shot_direction", false));
         col.addView(switchRow("Reverse stick direction", reverseDirection));
         reverseDirection.setOnCheckedChangeListener((button, checked) ->
                 settings().edit().putBoolean("reverse_shot_direction", checked).apply());

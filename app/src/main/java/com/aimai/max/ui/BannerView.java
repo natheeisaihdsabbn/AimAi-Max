@@ -10,15 +10,32 @@ import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
 import android.view.View;
+import android.view.MotionEvent;
+import android.os.Handler;
+import android.os.Looper;
 
 /** Top banner of the Games page: dark card, headline text and a drawn carrom shot. */
 public class BannerView extends View {
     private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();
     private final RectF rect = new RectF();
+    private int page = 0;
+    private float downX;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable rotate = new Runnable() { public void run() { page = (page + 1) % 3; invalidate(); handler.postDelayed(this, 4200); } };
 
     public BannerView(Context c) {
         super(c);
+        setOnTouchListener((v, e) -> {
+            if (e.getAction() == MotionEvent.ACTION_DOWN) { downX = e.getX(); return true; }
+            if (e.getAction() == MotionEvent.ACTION_UP) {
+                if (Math.abs(e.getX() - downX) > 28) page = (page + (e.getX() < downX ? 1 : 2)) % 3;
+                else page = (page + 1) % 3;
+                invalidate(); handler.removeCallbacks(rotate); handler.postDelayed(rotate, 4200); return true;
+            }
+            return true;
+        });
+        handler.postDelayed(rotate, 4200);
     }
 
     @Override
@@ -62,20 +79,22 @@ public class BannerView extends View {
         p.setColor(Color.rgb(160, 150, 230));
         p.setTextSize(10 * d);
         p.setLetterSpacing(0.18f);
-        c.drawText("AUTOMATION", 18 * d, 32 * d, p);
+        String[] eyebrow = {"AIM.AI ASSISTANT", "STAY IN FLOW", "BUILT FOR CARROM"};
+        String[] headline = {"See the shot.", "Stay in flow.", "Play with focus."};
+        String[] subline = {"Plan a smarter line.", "Keep your rhythm going.", "Your game, your pace."};
+        c.drawText(eyebrow[page], 18 * d, 32 * d, p);
         p.setLetterSpacing(0f);
         p.setTypeface(Typeface.DEFAULT_BOLD);
         p.setColor(Color.WHITE);
         p.setTextSize(27 * d);
-        c.drawText("Think ahead.", 18 * d, 74 * d, p);
-        c.drawText("Finish faster.", 18 * d, 104 * d, p);
+        c.drawText(headline[page], 18 * d, 74 * d, p);
+        p.setTypeface(Typeface.DEFAULT); p.setTextSize(13 * d); p.setColor(Color.rgb(205, 202, 220));
+        c.drawText(subline[page], 18 * d, 98 * d, p);
         p.setTypeface(Typeface.DEFAULT);
 
-        p.setColor(Color.argb(130, 200, 200, 230));
-        c.drawCircle(w / 2f - 12 * d, h - 12 * d, 2 * d, p);
-        p.setColor(Color.argb(255, 160, 150, 230));
-        c.drawCircle(w / 2f, h - 12 * d, 2 * d, p);
-        p.setColor(Color.argb(130, 200, 200, 230));
-        c.drawCircle(w / 2f + 12 * d, h - 12 * d, 2 * d, p);
+        for (int i = 0; i < 3; i++) {
+            p.setColor(i == page ? Color.rgb(207, 116, 255) : Color.argb(120, 200, 200, 230));
+            c.drawCircle(w / 2f + (i - 1) * 12 * d, h - 12 * d, 2 * d, p);
+        }
     }
 }

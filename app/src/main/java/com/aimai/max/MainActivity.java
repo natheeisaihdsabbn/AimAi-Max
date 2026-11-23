@@ -19,6 +19,8 @@ import android.view.WindowManager;
 import android.widget.EditText;
 import android.os.PowerManager;
 import android.text.InputType;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -43,8 +45,8 @@ import java.util.Date;
 
 public class MainActivity extends Activity {
     private static final int SCREEN_CAPTURE_REQUEST = 2002;
-    private static final String[] TITLES = {"Games.", "Pass.", "Sellers.", "Settings."};
-    private static final int[] NAV_ICONS = {IconView.HOME, IconView.CROWN, IconView.TROPHY, IconView.GEAR};
+    private static final String[] TITLES = {"Home", "Sellers", "Leaderboard", "Settings"};
+    private static final int[] NAV_ICONS = {IconView.HOME, IconView.PEOPLE, IconView.TROPHY, IconView.GEAR};
 
     /** Fill in real sellers here as {"@handle", "Region"}. Empty list shows "No sellers listed yet." */
     private static final String[][] SELLERS = {};
@@ -52,9 +54,9 @@ public class MainActivity extends Activity {
     private final int bg = Color.rgb(5, 6, 10);
     private final int card = Color.rgb(15, 17, 24);
     private final int line = Color.rgb(32, 35, 46);
-    private final int purple = Color.rgb(124, 111, 184);
-    private final int purpleLight = Color.rgb(166, 156, 235);
-    private final int navPill = Color.rgb(44, 44, 78);
+    private final int purple = Color.rgb(111, 24, 157);
+    private final int purpleLight = Color.rgb(195, 106, 255);
+    private final int navPill = Color.rgb(63, 20, 84);
     private final int muted = Color.rgb(140, 145, 160);
 
     private FrameLayout host;
@@ -275,13 +277,13 @@ public class MainActivity extends Activity {
             return;
         }
         final EditText input = new EditText(this);
-        input.setHint("Password");
+        input.setHint("Access key");
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT
                 | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS
                 | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         final AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("Enter password")
+                .setTitle("Sign in")
                 .setView(input)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Continue", null)
@@ -289,7 +291,7 @@ public class MainActivity extends Activity {
         dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
             String key = input.getText().toString().trim();
             if (key.isEmpty()) {
-                input.setError("Enter the password");
+                input.setError("Enter your access key");
                 return;
             }
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
@@ -302,7 +304,7 @@ public class MainActivity extends Activity {
                     return;
                 }
                 dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
-                if (result == LicenseManager.Result.INVALID) input.setError("Wrong password");
+                if (result == LicenseManager.Result.INVALID) input.setError("Invalid access key");
                 else if (result == LicenseManager.Result.OTHER_DEVICE) input.setError("Already used on another phone");
                 else input.setError("Cannot reach the server");
             });
@@ -375,36 +377,26 @@ public class MainActivity extends Activity {
 
     private View buildHeader() {
         FrameLayout header = new FrameLayout(this);
-        header.setPadding(dp(20), dp(14), dp(20), dp(14));
-
-        LinearLayout pill = new LinearLayout(this);
-        pill.setGravity(Gravity.CENTER_VERTICAL);
-        pill.setPadding(dp(6), dp(5), dp(12), dp(5));
-        pill.setBackground(box(card, 8, line));
+        header.setPadding(dp(18), dp(10), dp(18), dp(10));
+        LinearLayout brandBlock = new LinearLayout(this);
+        brandBlock.setGravity(Gravity.CENTER_VERTICAL);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.aimai_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        pill.addView(logo, lp(28, 28));
-        TextView brand = label("AimAi ", 12, muted, false);
-        TextView engine = label("Max", 12, purpleLight, true);
-        LinearLayout brandRow = new LinearLayout(this);
-        brandRow.setPadding(dp(8), 0, 0, 0);
-        brandRow.addView(brand);
-        brandRow.addView(engine);
-        pill.addView(brandRow);
-        header.addView(pill, new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL));
-
-        title = label("Games.", 22, Color.WHITE, true);
-        header.addView(title, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-
-        LinearLayout right = new LinearLayout(this);
-        right.setGravity(Gravity.CENTER_VERTICAL);
-        right.addView(roundButton(IconView.CHAT, v -> showPage(2)), lp(32, 32));
-        View.OnClickListener about = v -> showAbout();
-        LinearLayout.LayoutParams second = lp(32, 32);
-        second.leftMargin = dp(8);
-        right.addView(roundButton(IconView.INFO, about), second);
-        header.addView(right, new FrameLayout.LayoutParams(-2, -2, Gravity.END | Gravity.CENTER_VERTICAL));
+        brandBlock.addView(logo, lp(34, 34));
+        LinearLayout names = new LinearLayout(this);
+        names.setOrientation(LinearLayout.VERTICAL);
+        names.setPadding(dp(10), 0, 0, 0);
+        names.addView(label("AIM.AI", 18, Color.WHITE, true));
+        names.addView(label("VERSION " + versionName(), 9, muted, false));
+        brandBlock.addView(names);
+        header.addView(brandBlock, new FrameLayout.LayoutParams(-2, -2, Gravity.START | Gravity.CENTER_VERTICAL));
+        title = label("AIM.AI", 1, Color.TRANSPARENT, false);
+        View refresh = roundButton(IconView.REFRESH, v -> {
+            if (current >= 0) showPage(current);
+            Toast.makeText(this, "Screen refreshed", Toast.LENGTH_SHORT).show();
+        });
+        header.addView(refresh, new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.END | Gravity.CENTER_VERTICAL));
         return header;
     }
 
@@ -420,59 +412,41 @@ public class MainActivity extends Activity {
 
     private View buildBottomBar() {
         FrameLayout wrap = new FrameLayout(this);
-        wrap.setPadding(dp(30), dp(6), dp(30), dp(14));
-
-        LinearLayout stack = new LinearLayout(this);
-        stack.setOrientation(LinearLayout.VERTICAL);
-        stack.setGravity(Gravity.CENTER_HORIZONTAL);
-
-        TextView premium = label("Premium  →", 11, Color.rgb(235, 232, 250), true);
-        premium.setGravity(Gravity.CENTER);
-        premium.setPadding(dp(14), dp(5), dp(14), dp(5));
-        AimAiUiStyle.surface(premium, true);
-        premium.setOnClickListener(v -> showPage(1));
-        premiumPill = premium;
-        LinearLayout.LayoutParams pp = new LinearLayout.LayoutParams(-2, -2);
-        pp.bottomMargin = dp(10);
-        stack.addView(premium, pp);
-
+        wrap.setPadding(dp(22), dp(7), dp(22), dp(10));
         LinearLayout nav = new LinearLayout(this);
         nav.setGravity(Gravity.CENTER);
-        nav.setPadding(dp(6), dp(6), dp(6), dp(6));
-        nav.setBackground(box(Color.rgb(13, 14, 21), 12, line));
+        nav.setPadding(dp(6), dp(5), dp(6), dp(5));
+        nav.setBackground(box(Color.rgb(14, 14, 21), 15, line));
         for (int i = 0; i < 4; i++) {
             final int index = i;
             FrameLayout cell = new FrameLayout(this);
             View pillBg = new View(this);
-            pillBg.setBackground(rounded(navPill, 9));
+            pillBg.setBackground(rounded(navPill, 10));
             pillBg.setVisibility(View.INVISIBLE);
-            cell.addView(pillBg, new FrameLayout.LayoutParams(-1, -1));
+            cell.addView(pillBg, new FrameLayout.LayoutParams(dp(44), dp(38), Gravity.CENTER));
             IconView icon = new IconView(this, NAV_ICONS[i]);
             cell.addView(icon, new FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER));
-            cell.setOnClickListener(v -> showPage(index));
             navIcons[i] = icon;
             navPills[i] = pillBg;
-            nav.addView(cell, new LinearLayout.LayoutParams(0, dp(42), 1f));
+            cell.setOnClickListener(v -> showPage(index));
+            nav.addView(cell, new LinearLayout.LayoutParams(0, dp(48), 1f));
         }
-        stack.addView(nav, new LinearLayout.LayoutParams(-1, -2));
-        wrap.addView(stack, new FrameLayout.LayoutParams(-1, -2));
+        wrap.addView(nav, new FrameLayout.LayoutParams(-1, -2));
         return wrap;
     }
 
     private void showPage(int index) {
         current = index;
-        title.setText(TITLES[index]);
         for (int i = 0; i < 4; i++) {
             boolean on = i == index;
             navPills[i].setVisibility(on ? View.VISIBLE : View.INVISIBLE);
             navIcons[i].setColor(on ? purpleLight : muted);
         }
-        premiumPill.setVisibility(index == 0 ? View.VISIBLE : View.GONE);
         host.removeAllViews();
         View page;
         switch (index) {
-            case 1: page = buildPass(); break;
-            case 2: page = buildSellers(); break;
+            case 1: page = buildSellers(); break;
+            case 2: page = buildLeaderboard(); break;
             case 3: page = buildSettings(); break;
             default: page = buildGames(); break;
         }
@@ -492,63 +466,62 @@ public class MainActivity extends Activity {
     private View buildGames() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout column = pageColumn(scroll);
+        column.addView(new BannerView(this), lp(-1, 156));
+        LinearLayout bannerInfo = new LinearLayout(this);
+        bannerInfo.setGravity(Gravity.CENTER_VERTICAL);
+        bannerInfo.setPadding(dp(4), dp(15), dp(4), dp(4));
+        bannerInfo.addView(label("Choose your game", 17, Color.WHITE, true), new LinearLayout.LayoutParams(0, -2, 1f));
+        bannerInfo.addView(label("3 GAMES", 10, purpleLight, true));
+        column.addView(bannerInfo);
+        column.addView(gameListing("Carrom Pool", "Carrom Disc Pool", true), lp(-1, -2));
+        column.addView(gameListing("8 Ball Pool", "8 Ball Pool", false), lp(-1, -2));
+        column.addView(gameListing("Soccer Stars", "Soccer Stars", false), lp(-1, -2));
+        TextView caveat = label("Aim and auto-play features in this build are for Carrom Disc Pool only.", 11, muted, false);
+        caveat.setGravity(Gravity.CENTER);
+        caveat.setPadding(dp(8), dp(14), dp(8), dp(4));
+        column.addView(caveat, lp(-1, -2));
+        return scroll;
+    }
 
-        column.addView(new BannerView(this), lp(-1, 150));
-        View permissions = buildPermissionCard();
-        if (permissions != null) {
-            LinearLayout.LayoutParams pcp = lp(-1, -2);
-            pcp.topMargin = dp(14);
-            column.addView(permissions, pcp);
-        }
-
-        LinearLayout gameCard = new LinearLayout(this);
-        gameCard.setOrientation(LinearLayout.VERTICAL);
-        gameCard.setPadding(dp(14), dp(14), dp(14), dp(14));
-        gameCard.setBackground(box(card, 10, line));
-        LinearLayout.LayoutParams cp = lp(-1, -2);
-        cp.topMargin = dp(18);
-        column.addView(gameCard, cp);
-
+    private View gameListing(String name, String app, boolean supported) {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(13), dp(13), dp(13), dp(13));
+        box.setBackground(box(card, 14, line));
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.addView(new BoardIconView(this), lp(62, 62));
-        LinearLayout text = new LinearLayout(this);
-        text.setOrientation(LinearLayout.VERTICAL);
-        text.setPadding(dp(14), 0, 0, 0);
-        text.addView(label("Carrom Disc Pool", 17, Color.WHITE, false));
-        LinearLayout status = new LinearLayout(this);
-        status.setGravity(Gravity.CENTER_VERTICAL);
-        status.setPadding(0, dp(5), 0, 0);
-        View dot = new View(this);
-        dot.setBackground(rounded(Color.rgb(112, 190, 140), 4));
-        status.addView(dot, lp(8, 8));
-        TextView ready = label("Ready", 12, muted, false);
-        ready.setPadding(dp(8), 0, 0, 0);
-        status.addView(ready);
-        text.addView(status);
-        row.addView(text, new LinearLayout.LayoutParams(0, -2, 1f));
-
-        FrameLayout more = new FrameLayout(this);
-        AimAiUiStyle.surface(more, false);
-        TextView dots = label("•••", 12, muted, true);
-        dots.setGravity(Gravity.CENTER);
-        more.addView(dots, new FrameLayout.LayoutParams(-1, -1));
-        more.setOnClickListener(v -> showMoreMenu(v));
-        row.addView(more, lp(34, 34));
-        gameCard.addView(row);
-
-        LinearLayout launch = new LinearLayout(this);
-        launch.setGravity(Gravity.CENTER_VERTICAL);
-        launch.setPadding(dp(18), 0, dp(18), 0);
-        AimAiUiStyle.surface(launch, true);
-        TextView launchText = label("Launch", 13, Color.rgb(240, 238, 252), false);
-        launch.addView(launchText, new LinearLayout.LayoutParams(0, -2, 1f));
-        launch.addView(label("→", 18, Color.rgb(240, 238, 252), false));
-        launch.setOnClickListener(v -> launchWithPassword());
-        LinearLayout.LayoutParams lpLaunch = lp(-1, 38);
-        lpLaunch.topMargin = dp(16);
-        gameCard.addView(launch, lpLaunch);
-        return scroll;
+        View badge;
+        if (supported) badge = new BoardIconView(this);
+        else {
+            TextView mark = label(name.equals("8 Ball Pool") ? "8" : "S", 24, purpleLight, true);
+            mark.setGravity(Gravity.CENTER);
+            mark.setBackground(box(Color.rgb(32, 19, 42), 12, Color.rgb(72, 37, 94)));
+            badge = mark;
+        }
+        row.addView(badge, lp(52, 52));
+        LinearLayout details = new LinearLayout(this);
+        details.setOrientation(LinearLayout.VERTICAL);
+        details.setPadding(dp(12), 0, 0, 0);
+        details.addView(label(name, 16, Color.WHITE, true));
+        details.addView(label(supported ? "AimAi Max supported" : "Not integrated in this build", 11, muted, false));
+        row.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView chevron = label("···", 18, muted, true);
+        chevron.setGravity(Gravity.CENTER);
+        row.addView(chevron, lp(30, 34));
+        chevron.setOnClickListener(v -> showMoreMenu(v));
+        box.addView(row);
+        TextView action = label(supported ? "Launch" : "Import", 13, Color.WHITE, true);
+        action.setGravity(Gravity.CENTER);
+        action.setBackground(rounded(purple, 9));
+        LinearLayout.LayoutParams ap = lp(-1, 38); ap.topMargin = dp(12); box.addView(action, ap);
+        action.setOnClickListener(v -> {
+            if (supported) launchWithPassword();
+            else new AlertDialog.Builder(this).setTitle(name)
+                    .setMessage("This game is not integrated with AimAi Max yet. No game import or aiming feature is available in this build.")
+                    .setPositiveButton("OK", null).show();
+        });
+        LinearLayout.LayoutParams cp = lp(-1, -2); cp.topMargin = dp(10); box.setLayoutParams(cp);
+        return box;
     }
 
     private void showMoreMenu(View anchor) {
@@ -674,57 +647,51 @@ public class MainActivity extends Activity {
     private View buildSellers() {
         ScrollView scroll = new ScrollView(this);
         LinearLayout column = pageColumn(scroll);
+        column.addView(label("Sellers", 22, Color.WHITE, true));
+        TextView note = label("Search countries and regions", 13, muted, false);
+        note.setPadding(0, dp(5), 0, dp(14)); column.addView(note);
+        EditText search = new EditText(this);
+        search.setSingleLine(true); search.setTextSize(14); search.setTextColor(Color.WHITE);
+        search.setHintTextColor(muted); search.setHint("Search country");
+        search.setPadding(dp(15), 0, dp(15), 0); search.setBackground(box(card, 12, line));
+        column.addView(search, lp(-1, 48));
+        TextView unavailable = label("Seller listings are not connected in this build.", 12, muted, false);
+        unavailable.setPadding(dp(2), dp(14), 0, dp(4)); column.addView(unavailable);
+        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams listp = lp(-1, -2); listp.topMargin = dp(5); column.addView(list, listp);
+        String[] countries = {"Global", "Bangladesh", "India", "Pakistan", "Nepal", "Sri Lanka", "United States", "United Kingdom", "Indonesia", "Malaysia", "Saudi Arabia", "United Arab Emirates"};
+        Runnable render = () -> {
+            list.removeAllViews(); String q = search.getText().toString().trim().toLowerCase();
+            for (String country : countries) if (country.toLowerCase().contains(q)) {
+                LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(12), 0, dp(12), 0); row.setBackground(box(card, 10, line));
+                TextView globe = label("◎", 20, purpleLight, true); globe.setGravity(Gravity.CENTER); row.addView(globe, lp(42, 42));
+                TextView name = label(country, 14, Color.WHITE, false); name.setPadding(dp(12), 0, 0, 0);
+                row.addView(name, new LinearLayout.LayoutParams(0, -2, 1f));
+                row.addView(label("—", 13, muted, false));
+                row.setOnClickListener(v -> Toast.makeText(this, "Seller listings are not available yet.", Toast.LENGTH_SHORT).show());
+                LinearLayout.LayoutParams rp = lp(-1, 52); rp.topMargin = dp(8); list.addView(row, rp);
+            }
+        };
+        render.run();
+        search.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence s, int st, int count, int after) {}
+            public void onTextChanged(CharSequence s, int st, int before, int count) { render.run(); }
+            public void afterTextChanged(Editable e) {}
+        });
+        return scroll;
+    }
 
-        TextView find = label("Find sellers", 14, Color.WHITE, false);
-        find.setGravity(Gravity.CENTER);
-        find.setBackground(box(Color.rgb(24, 25, 42), 16, Color.rgb(52, 54, 90)));
-        column.addView(find, lp(-1, 48));
-
-        LinearLayout network = new LinearLayout(this);
-        network.setOrientation(LinearLayout.VERTICAL);
-        network.setPadding(dp(20), dp(18), dp(20), dp(18));
-        network.setBackground(box(Color.rgb(24, 25, 42), 24, Color.rgb(52, 54, 90)));
-        TextView count = label(SELLERS.length + " sellers", 10, purpleLight, false);
-        network.addView(count);
-        TextView head = label("Official seller network", 22, Color.WHITE, true);
-        head.setPadding(0, dp(6), 0, dp(6));
-        network.addView(head);
-        network.addView(label("Choose a seller and contact them directly.", 13, muted, false));
-        LinearLayout.LayoutParams np = lp(-1, -2);
-        np.topMargin = dp(14);
-        column.addView(network, np);
-
-        TextView chip = label("All · " + SELLERS.length, 13, Color.WHITE, true);
-        chip.setPadding(dp(16), dp(10), dp(16), dp(10));
-        chip.setBackground(box(Color.rgb(24, 25, 42), 18, Color.rgb(52, 54, 90)));
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, -2);
-        cp.topMargin = dp(16);
-        column.addView(chip, cp);
-
-        if (SELLERS.length == 0) {
-            TextView empty = label("No sellers listed yet.", 14, muted, false);
-            empty.setPadding(dp(4), dp(24), 0, 0);
-            column.addView(empty);
-        }
-        for (String[] seller : SELLERS) {
-            LinearLayout item = new LinearLayout(this);
-            item.setGravity(Gravity.CENTER_VERTICAL);
-            item.setPadding(dp(14), dp(14), dp(14), dp(14));
-            item.setBackground(box(card, 22, line));
-            TextView avatar = label("@", 18, Color.WHITE, true);
-            avatar.setGravity(Gravity.CENTER);
-            avatar.setBackground(rounded(Color.rgb(44, 66, 58), 26));
-            item.addView(avatar, lp(52, 52));
-            LinearLayout info = new LinearLayout(this);
-            info.setOrientation(LinearLayout.VERTICAL);
-            info.setPadding(dp(14), 0, 0, 0);
-            info.addView(label(seller[0], 16, Color.WHITE, false));
-            info.addView(label(seller.length > 1 ? seller[1] : "Global", 12, muted, false));
-            item.addView(info);
-            LinearLayout.LayoutParams ip = lp(-1, -2);
-            ip.topMargin = dp(12);
-            column.addView(item, ip);
-        }
+    private View buildLeaderboard() {
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout column = pageColumn(scroll);
+        column.addView(label("Leaderboard", 22, Color.WHITE, true));
+        LinearLayout empty = groupCard();
+        empty.setGravity(Gravity.CENTER); empty.setPadding(dp(20), dp(28), dp(20), dp(28));
+        empty.addView(label("No leaderboard data yet", 16, Color.WHITE, true));
+        TextView desc = label("A leaderboard service is not connected in this build.", 12, muted, false);
+        desc.setGravity(Gravity.CENTER); desc.setPadding(0, dp(8), 0, 0); empty.addView(desc);
+        LinearLayout.LayoutParams ep = lp(-1, -2); ep.topMargin = dp(16); column.addView(empty, ep);
         return scroll;
     }
 
@@ -732,55 +699,78 @@ public class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout column = pageColumn(scroll);
         SharedPreferences prefs = getSharedPreferences("aimai_settings", MODE_PRIVATE);
+        sectionLabel(column, "APPEARANCE");
+        LinearLayout appearance = groupCard();
+        addSettingRow(appearance, IconView.INFO, "Theme", "Dark", null, true, v ->
+                new AlertDialog.Builder(this).setTitle("Appearance").setMessage("Dark appearance is currently available.")
+                        .setPositiveButton("OK", null).show());
+        column.addView(appearance, lp(-1, -2));
 
-        sectionLabel(column, "ASSISTANT");
+        sectionLabel(column, "ACCOUNT");
+        LinearLayout account = groupCard();
+        addSettingRow(account, IconView.ACCESS, "Facebook login", "Not connected", null, false,
+                v -> Toast.makeText(this, "Facebook login is not configured in this build.", Toast.LENGTH_SHORT).show());
+        addSettingRow(account, IconView.INFO, "Language", "English", null, false,
+                v -> new AlertDialog.Builder(this).setTitle("Language").setItems(new String[]{"English"}, (d, w) -> {})
+                        .show());
+        addSettingRow(account, IconView.PEOPLE, "Profile", "Profile 1", null, true, null);
+        column.addView(account, lp(-1, -2));
+
+        sectionLabel(column, "GOOGLE SERVICES");
+        LinearLayout google = groupCard();
+        addSettingRow(google, IconView.CHIP, "Google services", "Not configured", null, true,
+                v -> Toast.makeText(this, "Google services are not configured.", Toast.LENGTH_SHORT).show());
+        column.addView(google, lp(-1, -2));
+
+        sectionLabel(column, "DIAGNOSTICS");
+        LinearLayout diagnostics = groupCard();
+        Switch save = new Switch(this); save.setChecked(prefs.getBoolean("save_diagnostics", false));
+        save.setOnCheckedChangeListener((b, checked) -> prefs.edit().putBoolean("save_diagnostics", checked).apply());
+        addSettingRow(diagnostics, IconView.DOC, "Save diagnostics", null, save, true, null);
+        column.addView(diagnostics, lp(-1, -2));
+
+        sectionLabel(column, "COMMUNITY");
+        LinearLayout social = groupCard();
+        addSettingRow(social, IconView.INFO, "Website", "Not set", null, false, null);
+        addSettingRow(social, IconView.CHAT, "Telegram", "Not set", null, true, null);
+        column.addView(social, lp(-1, -2));
+
+        sectionLabel(column, "LOADER");
+        LinearLayout loader = groupCard();
+        addSettingRow(loader, IconView.REFRESH, "Loader update", "Check", null, true,
+                v -> new AlertDialog.Builder(this).setTitle("Loader update")
+                        .setMessage("No loader update service is configured for this build.")
+                        .setPositiveButton("OK", null).show());
+        column.addView(loader, lp(-1, -2));
+
+        sectionLabel(column, "ASSISTANT & DEVICE");
         LinearLayout assistant = groupCard();
         boolean accessibility = AimAiGestureService.isConnected();
         boolean overlay = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this);
-        addSettingRow(assistant, IconView.ACCESS, "Accessibility (Auto Play)",
-                accessibility ? "On" : "Off", null, false,
+        addSettingRow(assistant, IconView.ACCESS, "Accessibility (Auto Play)", accessibility ? "On" : "Off", null, false,
                 v -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
-        addSettingRow(assistant, IconView.LAYERS, "Display over other apps",
-                overlay ? "On" : "Off", null, true,
-                v -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:" + getPackageName()))));
+        addSettingRow(assistant, IconView.LAYERS, "Display over other apps", overlay ? "On" : "Off", null, false,
+                v -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + getPackageName()))));
+        Switch awake = new Switch(this); awake.setChecked(prefs.getBoolean("keep_screen_awake", false));
+        awake.setOnCheckedChangeListener((b, checked) -> { prefs.edit().putBoolean("keep_screen_awake", checked).apply();
+            if (checked) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); });
+        addSettingRow(assistant, IconView.CHIP, "Keep screen awake", null, awake, true, null);
         column.addView(assistant, lp(-1, -2));
 
-        sectionLabel(column, "DISPLAY");
-        LinearLayout display = groupCard();
-        Switch awake = new Switch(this);
-        awake.setChecked(prefs.getBoolean("keep_screen_awake", false));
-        awake.setOnCheckedChangeListener((b, checked) -> {
-            prefs.edit().putBoolean("keep_screen_awake", checked).apply();
-            if (checked) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        });
-        addSettingRow(display, IconView.CHIP, "Keep screen awake", null, awake, true, null);
-        column.addView(display, lp(-1, -2));
-
-        sectionLabel(column, "APP");
-        LinearLayout app = groupCard();
-        addSettingRow(app, IconView.DOC, "Version", versionName(), null, false, null);
-        addSettingRow(app, IconView.CHIP, "Architecture",
-                Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0].toUpperCase() : "—",
-                null, false, null);
-        addSettingRow(app, IconView.INFO, "Legal", "›", null, true, v -> showLegal());
-        column.addView(app, lp(-1, -2));
-
-        sectionLabel(column, "LOGS");
+        sectionLabel(column, "ABOUT");
+        LinearLayout about = groupCard();
+        addSettingRow(about, IconView.DOC, "Version", versionName(), null, false, null);
+        addSettingRow(about, IconView.CHIP, "Build", String.valueOf(BuildConfig.VERSION_CODE), null, false, null);
+        addSettingRow(about, IconView.CHIP, "Architecture", Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0].toUpperCase() : "—", null, false, null);
+        addSettingRow(about, IconView.INFO, "Legal", "›", null, true, v -> showLegal());
+        column.addView(about, lp(-1, -2));
         LinearLayout logs = groupCard();
         addSettingRow(logs, IconView.SHARE, "Share logs", "›", null, false, v -> shareLogs());
-        final TextView[] sizeHolder = new TextView[1];
-        addSettingRow(logs, IconView.TRASH, "Clear logs", "", null, true, v -> {
-            clearLogs();
-            if (sizeHolder[0] != null) sizeHolder[0].setText("cleared");
-        });
-        column.addView(logs, lp(-1, -2));
-
-        TextView footer = label("© 2026 AimAi Max.", 11, Color.rgb(100, 104, 118), false);
-        footer.setGravity(Gravity.CENTER);
-        footer.setPadding(0, dp(24), 0, dp(8));
-        column.addView(footer, lp(-1, -2));
+        addSettingRow(logs, IconView.TRASH, "Clear logs", "›", null, true, v -> clearLogs());
+        LinearLayout.LayoutParams logp = lp(-1, -2); logp.topMargin = dp(12); column.addView(logs, logp);
+        TextView footer = label("© 2026 AimAi Max", 11, muted, false); footer.setGravity(Gravity.CENTER);
+        footer.setPadding(0, dp(20), 0, dp(8)); column.addView(footer, lp(-1, -2));
         return scroll;
     }
 

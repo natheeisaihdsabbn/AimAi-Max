@@ -145,54 +145,6 @@ public final class ShotSearch {
         pr *= 0.82f; // the coin has to go well inside the hole, not just touch its edge
         float L = a.board.left, T = a.board.top, R = a.board.right, B = a.board.bottom;
 
-        // Opening rack: the simulator cannot predict a full rack, so break straight into its middle at full power.
-        if (a.pieces.size() >= 18) {
-            float bcx = (L + R) / 2f, bcy = (T + B) / 2f;
-            Piece mid = null;
-            float midD = 1e9f, maxD = 0f;
-            for (Piece p : a.pieces) {
-                if (p == s0 || p.type == PieceType.STRIKER) continue;
-                float dd = (float) Math.hypot(p.x - bcx, p.y - bcy);
-                if (dd < midD) { midD = dd; mid = p; }
-                if (dd > maxD) maxD = dd;
-            }
-            if (mid != null && maxD < 0.22f * (R - L)) {
-                strikerDisc.x = s0.x;
-                strikerDisc.y = s0.y;
-                float bdx = mid.x - s0.x, bdy = mid.y - s0.y;
-                float blen = (float) Math.sqrt(bdx * bdx + bdy * bdy);
-                if (blen > 1f) {
-                    CarromSim.Result br = CarromSim.run(base, si, bdx / blen, bdy / blen, SPEEDS[2], L, T, R, B, px, py, pr, false);
-                    if (!br.strikerPotted && br.strikerMinPocket > pr * 2.95f
-                            && br.minePotted > 0 && br.otherPotted == 0) {
-                        Shot bs = new Shot();
-                        bs.valid = true;
-                        bs.kind = 0;
-                        bs.target = mid;
-                        bs.pocket = a.pockets.get(0);
-                        bs.strikerX = s0.x;
-                        bs.strikerY = s0.y;
-                        bs.aimX = mid.x;
-                        bs.aimY = mid.y;
-                        bs.ghostX = mid.x;
-                        bs.ghostY = mid.y;
-                        bs.power = 1f;
-                        Outcome bo = new Outcome();
-                        bo.shot = bs;
-                        bo.level = 2;
-                        bo.speed = SPEEDS[2];
-                        bo.power = 1f;
-                        bo.powerMultiplier = 1f;
-                        bo.potsSomething = false;
-                        bo.paths = record(base, si, bo, L, T, R, B, px, py, pr);
-                        result.best = bo;
-                        result.tried++;
-                        return result;
-                    }
-                }
-            }
-        }
-
         List<Outcome> outcomes = new ArrayList<>();
         for (Shot cand : cands) {
             if (android.os.SystemClock.elapsedRealtime() - started >= budgetMs) break;
@@ -299,7 +251,7 @@ public final class ShotSearch {
             if (ri > 0 && android.os.SystemClock.elapsedRealtime() - robustStart > 70L) break;
             Outcome ro = outcomes.get(ri);
             if (!ro.potsSomething) continue;
-            float frac = robustFraction(base, si, ro, L, T, R, B, px, py, pr);
+            float frac = robustFraction(base, basePieces, si, ro, L, T, R, B, px, py, pr);
             ro.simScore += (coverMode ? 1.5f : 1f) * (240f * frac - 160f);
         }
         Collections.sort(outcomes, new Comparator<Outcome>() {
@@ -325,9 +277,15 @@ public final class ShotSearch {
      * where the scan saw it, moves the aim point a few pixels, and changes the power a little, just like a real
      * finger on a real screen does.
      */
-    private static float robustFraction(List<CarromSim.Disc> base, int si, Outcome o, float L, float T, float R,
+    private static float robustFraction(List<CarromSim.Disc> base, List<Piece> basePieces, int si, Outcome o,
+                                        float L, float T, float R,
                                         float B, float[] px, float[] py, float pr) {
         Shot s = o.shot;
+        int targetIndex = -1;
+        for (int i = 0; i < basePieces.size(); i++) {
+            if (basePieces.get(i) == s.target) { targetIndex = i; break; }
+        }
+        if (targetIndex < 0) return 0f;
         CarromSim.Disc striker = base.get(si);
         float w = R - L;
         float nTrue = 0.006f * w, nDet = 0.004f * w, nAim = 0.006f * w;
@@ -348,6 +306,7 @@ public final class ShotSearch {
             float pw = 1f + 0.12f * u[6];
             CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, o.speed * pw, L, T, R, B, px, py, pr, false);
             if (!r.strikerPotted && r.strikerMinPocket > pr * 2.95f
+                    && targetPottedAt(r, targetIndex, s.pocket.x, s.pocket.y, pr)
                     && (coverMode ? r.minePotted > 0 : r.minePotted + r.queenPotted > 0) && r.otherPotted == 0) good++;
         }
         return good / (float) total;
