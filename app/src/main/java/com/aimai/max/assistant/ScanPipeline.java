@@ -21,6 +21,7 @@ public class ScanPipeline {
     private ShotSearch.Result cacheCur;
     private ShotSearch.Result cacheBest;
     private float cacheSx, cacheSy;
+    private String cacheContext;
     private List<float[]> previousPieces = new ArrayList<>();
     private CarromBoardAnalyzer.Analysis lastGood;
     private long lastGoodAt = 0L;
@@ -213,6 +214,15 @@ public class ScanPipeline {
         // No brightness-based fallback: if ownership cannot be confirmed, do not take a shot.
     }
 
+    private static String cacheContext(CarromBoardAnalyzer.Analysis a, String mode, boolean cover, boolean slide) {
+        StringBuilder key = new StringBuilder(32 + a.pieces.size() * 12);
+        key.append(mode).append('|').append(cover).append('|').append(slide).append('|');
+        for (CarromBoardAnalyzer.Piece p : a.pieces) {
+            key.append(p.type.ordinal()).append(':').append(p.mine ? '1' : '0').append(':')
+                    .append(Math.round(p.x)).append(':').append(Math.round(p.y)).append(';');
+        }
+        return key.toString();
+    }
     // ------------------------------------------------------------------ output
 
     /**
@@ -297,8 +307,9 @@ public class ScanPipeline {
         float frameW = bmp.getWidth();
         float frameH = bmp.getHeight();
 
-        // Our own guide drawing can hide the striker for one frame. Keep the last good scan briefly.
-        if (result.board.detected && result.striker != null) {
+        // A held scan may keep the guide visible, but it is never safe for firing a new shot.
+        boolean freshAnalysis = result.board.detected && result.striker != null;
+        if (freshAnalysis) {
             lastGood = result;
             lastGoodAt = scanned;
         } else if (lastGood != null && scanned - lastGoodAt < HOLD_LAST_MS) {
@@ -389,8 +400,15 @@ public class ScanPipeline {
         ShotSearch.coverMode = coverPending;
         if (striker != null && result.board.detected && myTurn) {
             markMine(ctx, bmp, result);
+            String coinMode = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
+                    .getString("my_coins", "AUTO");
             boolean slideOn = ctx.getSharedPreferences("aimai_settings", Context.MODE_PRIVATE)
                     .getBoolean("slide_enabled", true);
+            String context = cacheContext(result, coinMode, coverPending, slideOn);
+            if (!context.equals(cacheContext)) {
+                cacheCur = null;
+                cacheBest = null;
+            }
             // The shots are worked out once when the board has stopped and then kept, so the lines stay put.
             ShotSearch.Result cur;
             ShotSearch.Result best;
@@ -407,12 +425,14 @@ public class ScanPipeline {
                 cacheBest = best;
                 cacheSx = striker.x;
                 cacheSy = striker.y;
+                cacheContext = context;
             } else {
                 cur = new ShotSearch.Result();
                 best = null;
             }
 
             guideIntent.putExtra("isStriker", true);
+            guideIntent.putExtra("analysisFresh", freshAnalysis);
             guideIntent.putExtra("pieceX", striker.x / frameW);
             guideIntent.putExtra("pieceY", striker.y / frameH);
             guideIntent.putExtra("strikerRadius", striker.radius / frameW);
@@ -439,6 +459,7 @@ public class ScanPipeline {
                     + (curFound ? ", pots=" + cur.best.potsSomething + ", kind=" + cur.best.shot.kind : ", no shot"));
         } else {
             guideIntent.putExtra("isStriker", false);
+            guideIntent.putExtra("analysisFresh", false);
             guideIntent.putExtra("targetFound", false);
             guideIntent.putExtra("shotFound", false);
             guideIntent.putExtra("curFound", false);

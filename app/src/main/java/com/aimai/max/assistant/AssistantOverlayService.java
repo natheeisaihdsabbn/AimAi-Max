@@ -127,7 +127,7 @@ public class AssistantOverlayService extends Service {
             // A plan is executable only from the exact striker position it was simulated for.
             // In particular, never fire a "best" plan from the old position after a failed slider drag.
             float positionTolerance = Math.max(0.004f, strikerRadius * 0.45f);
-            boolean curPlanAtCurrent = curFound
+            boolean curPlanAtCurrent = intent.getBooleanExtra("analysisFresh", false) && curFound
                     && Float.isFinite(curPlanX) && Float.isFinite(curPlanY)
                     && Math.abs(curPlanX - x) <= positionTolerance
                     && Math.abs(curPlanY - y) <= positionTolerance;
@@ -135,7 +135,7 @@ public class AssistantOverlayService extends Service {
             // A slide is only a positioning action. After it, wait for a fresh screenshot and re-plan;
             // never reuse the alternate-position ghost point as a live shot direction.
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
-            boolean wantSlide = slideOn && bestFound && sliderTries < 2
+            boolean wantSlide = intent.getBooleanExtra("analysisFresh", false) && slideOn && bestFound && sliderTries < 2
                     && Math.abs(bestX - x) > 0.010f
                     && (!curPlanAtCurrent || bestScore > curScore + 4f);
 
@@ -184,7 +184,7 @@ public class AssistantOverlayService extends Service {
                     float aimY = intent.getFloatExtra("curAimY", Float.NaN);
                     if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
                             || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
-                    boolean pullBack = true; // Carrom Disc Pool slingshot: drag opposite to shoot forward.
+                    boolean pullBack = settings().getBoolean("reverse_shot_direction", true);
                     float powerMul = settings().getInt("power_pct", 100) / 100f
                             * intent.getFloatExtra("curPowerMul", 1f);
                     AimAiGestureService.swipeDurationMs = humanStyle()
@@ -865,6 +865,11 @@ public class AssistantOverlayService extends Service {
         powerRow.addView(powerValue, new LinearLayout.LayoutParams(0, dp(34), 1f));
         powerRow.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(34)));
         col.addView(powerRow);
+
+        Switch reverseDirection = accentSwitch(settings().getBoolean("reverse_shot_direction", true));
+        col.addView(switchRow("Reverse stick direction", reverseDirection));
+        reverseDirection.setOnCheckedChangeListener((button, checked) ->
+                settings().edit().putBoolean("reverse_shot_direction", checked).apply());
 
         col.addView(sectionTitle("MY COINS"));
         LinearLayout coinRow = new LinearLayout(this);

@@ -50,6 +50,24 @@ public class ShotSearchPreferenceTest {
         assertSame(bank, outcomes.get(1));
     }
 
+
+    @Test
+    public void plannedTargetMustBePottedAtTheSelectedPocket() {
+        CarromSim.Result result = new CarromSim.Result();
+        CarromSim.Disc target = new CarromSim.Disc();
+        target.potted = true;
+        target.x = 40f;
+        target.y = 40f;
+        result.discs = new ArrayList<>();
+        result.discs.add(target);
+        assertTrue(ShotSearch.targetPottedAt(result, 0, 40f, 40f, 28f));
+        assertFalse("a different pocket must not validate this candidate",
+                ShotSearch.targetPottedAt(result, 0, 960f, 960f, 28f));
+        target.potted = false;
+        assertFalse("a non-potted target must not validate this candidate",
+                ShotSearch.targetPottedAt(result, 0, 40f, 40f, 28f));
+    }
+
     private static ShotSearch.Outcome outcome(int kind, boolean potsSomething) {
         Shot shot = new Shot();
         shot.kind = kind;

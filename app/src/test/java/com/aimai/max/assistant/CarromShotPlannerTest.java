@@ -40,6 +40,32 @@ public class CarromShotPlannerTest {
         }
     }
 
+
+    @Test
+    public void nearestCoinFallbackGhostIsConstructedForItsSelectedPocket() {
+        Analysis a = new Analysis();
+        a.board.left = 0f;
+        a.board.top = 0f;
+        a.board.right = 1000f;
+        a.board.bottom = 1000f;
+        a.board.detected = true;
+        Piece striker = new Piece(500f, 900f, 36f, PieceType.STRIKER);
+        Piece mine = new Piece(500f, 500f, 27f, PieceType.WHITE);
+        mine.mine = true;
+        a.striker = striker;
+        a.pieces.add(striker);
+        a.pieces.add(mine);
+        a.pockets.add(new Pocket(40f, 40f, 40f));
+        Shot shot = CarromShotPlanner.best(a, java.util.Collections.<Shot>emptyList(), false);
+        assertTrue(shot.valid);
+        float coinToPocketX = shot.pocket.x - shot.target.x;
+        float coinToPocketY = shot.pocket.y - shot.target.y;
+        float strikerToGhostX = shot.aimX - shot.strikerX;
+        float strikerToGhostY = shot.aimY - shot.strikerY;
+        assertTrue("the hit direction must send the selected coin toward its pocket",
+                strikerToGhostX * coinToPocketX + strikerToGhostY * coinToPocketY > 0f);
+    }
+
     @Test
     public void aimsAtDetectedPocketCenterWithoutCornerOffset() {
         Analysis a = new Analysis();

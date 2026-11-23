@@ -56,6 +56,12 @@ public final class ShotSearch {
         public int tried;
     }
 
+    static boolean targetPottedAt(CarromSim.Result result, int targetIndex,
+                                          float pocketX, float pocketY, float pocketR) {
+        if (result == null || result.discs == null || targetIndex < 0 || targetIndex >= result.discs.size()) return false;
+        CarromSim.Disc target = result.discs.get(targetIndex);
+        return target.potted && Math.hypot(target.x - pocketX, target.y - pocketY) <= pocketR;
+    }
     static void preferDirectPotOutcomes(List<Outcome> outcomes) {
         boolean directPotExists = false;
         for (Outcome outcome : outcomes) {
@@ -100,6 +106,7 @@ public final class ShotSearch {
 
         Piece s0 = a.striker;
         List<CarromSim.Disc> base = new ArrayList<>();
+        List<Piece> basePieces = new ArrayList<>();
         for (Piece p : a.pieces) {
             if (p == s0 || p.type == PieceType.STRIKER || p.type == PieceType.UNKNOWN) continue;
             CarromSim.Disc d = new CarromSim.Disc();
@@ -110,6 +117,7 @@ public final class ShotSearch {
             if (p.type == PieceType.QUEEN) d.owner = CarromSim.QUEEN;
             else d.owner = p.mine ? CarromSim.MINE : CarromSim.OTHER;
             base.add(d);
+            basePieces.add(p);
         }
         CarromSim.Disc strikerDisc = new CarromSim.Disc();
         strikerDisc.r = s0.radius;
@@ -196,13 +204,18 @@ public final class ShotSearch {
             dx /= len;
             dy /= len;
 
+            int targetIndex = -1;
+            for (int i = 0; i < basePieces.size(); i++) {
+                if (basePieces.get(i) == cand.target) { targetIndex = i; break; }
+            }
+            if (targetIndex < 0) continue;
             Outcome bestForShot = null;
             for (int level = 0; level < SPEEDS.length; level++) {
                 float compensation = cutPowerCompensation(cand.cutAngleDeg);
                 float shotSpeed = SPEEDS[level] * compensation;
                 CarromSim.Result r = CarromSim.run(base, si, dx, dy, shotSpeed, L, T, R, B, px, py, pr, false);
                 result.tried++;
-                if (r.otherPotted > 0) continue;
+                if (r.otherPotted > 0 || !targetPottedAt(r, targetIndex, cand.pocket.x, cand.pocket.y, pr)) continue;
                 boolean nearStrikerPocket = r.strikerMinPocket < pr * 2.95f;
                 // The real striker can roll farther than the simulator. Reject the shot if either
                 // the normal or 35%-harder play approaches any pocket's foul zone.
@@ -247,7 +260,11 @@ public final class ShotSearch {
                 float shotSpeed = SPEEDS[0] * compensation;
                 CarromSim.Result r = CarromSim.run(base, si, dx / len, dy / len, shotSpeed, L, T, R, B, px, py, pr, false);
                 result.tried++;
-                if (r.strikerPotted || r.strikerMinPocket < pr * 2.95f || r.otherPotted > 0 || (coverMode && r.minePotted == 0)) continue;
+                int targetIndex = -1;
+                for (int i = 0; i < basePieces.size(); i++) if (basePieces.get(i) == cand.target) { targetIndex = i; break; }
+                if (targetIndex < 0 || r.strikerPotted || r.strikerMinPocket < pr * 2.95f || r.otherPotted > 0
+                        || !targetPottedAt(r, targetIndex, cand.pocket.x, cand.pocket.y, pr)
+                        || (coverMode && r.minePotted == 0)) continue;
                 Outcome o = new Outcome();
                 o.shot = cand;
                 o.level = 0;

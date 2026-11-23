@@ -323,18 +323,20 @@ public final class CarromShotPlanner {
             }
         }
         if (pk == null) return;
-        float vx = (near.x - s.x) / nearD;
-        float vy = (near.y - s.y) / nearD;
-        float[] fallbackGhost = ghostBall(near.x, near.y, near.x + vx, near.y + vy,
-                near.radius, s.radius);
-        float gx = fallbackGhost[0];
-        float gy = fallbackGhost[1];
         float ux = pk.x - near.x, uy = pk.y - near.y;
         float uLen = (float) Math.sqrt(ux * ux + uy * uy);
         if (uLen < 1f) return;
         ux /= uLen;
         uy /= uLen;
+        float gx = near.x - ux * (near.radius + s.radius);
+        float gy = near.y - uy * (near.radius + s.radius);
+        float vx = gx - s.x, vy = gy - s.y;
+        float vLen = (float) Math.hypot(vx, vy);
+        if (vLen < MIN_SHOT_RS * s.radius) return;
+        vx /= vLen;
+        vy /= vLen;
         float cos = vx * ux + vy * uy;
+        if (cos < 0.10f) return;
         Shot f = make(0, near, pk, s.x, s.y, gx, gy, gx, gy, -1f, -1f, cos, nearD + uLen, 99,
                 nearD, boardW);
         copy(f, best);
