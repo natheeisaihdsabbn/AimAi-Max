@@ -30,6 +30,25 @@ public class CarromSimSafetyTest {
     }
 
     @Test
+    public void strikerCanEnterPocketWhenOpeningExceedsItsRadius() {
+        List<Disc> discs = new ArrayList<>();
+        Disc striker = new Disc();
+        striker.x = 150f;
+        striker.y = 150f;
+        striker.r = 36f;
+        striker.mass = 1.4f;
+        striker.owner = CarromSim.STRIKER;
+        discs.add(striker);
+
+        Result result = CarromSim.run(discs, 0, -0.7071068f, -0.7071068f, 25f,
+                0f, 0f, 1000f, 1000f,
+                new float[]{40f}, new float[]{40f}, 40f, false);
+
+        assertTrue("a physically wide opening must be able to expose striker-pocket fouls",
+                result.strikerPotted);
+    }
+
+    @Test
     public void ownCoinCanStillEnterPocket() {
         List<Disc> discs = new ArrayList<>();
         Disc striker = new Disc();

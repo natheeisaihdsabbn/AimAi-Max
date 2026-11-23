@@ -419,8 +419,8 @@ public class ScanPipeline {
                 // Always scan the complete legal baseline before choosing the shot. A valid
                 // current-position pot does not mean it is the best angle; the baseline may offer
                 // a much straighter, clearer route to the same coin and pocket.
-                cur = ShotSearch.search(result, false, false, 110L, 32);
-                best = slideOn ? ShotSearch.search(result, false, true, 260L, 32) : null;
+                cur = ShotSearch.search(result, false, false, 260L, 32);
+                best = slideOn ? ShotSearch.search(result, false, true, 420L, 32) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;

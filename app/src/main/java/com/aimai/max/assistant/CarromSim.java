@@ -47,6 +47,15 @@ public final class CarromSim {
         return c;
     }
 
+    private static float segmentDistanceSquared(float px, float py, float ax, float ay, float bx, float by) {
+        float dx = bx - ax, dy = by - ay;
+        float len2 = dx * dx + dy * dy;
+        float t = len2 < 1e-6f ? 0f : ((px - ax) * dx + (py - ay) * dy) / len2;
+        t = Math.max(0f, Math.min(1f, t));
+        float ex = ax + t * dx - px, ey = ay + t * dy - py;
+        return ex * ex + ey * ey;
+    }
+
     /**
      * Plays one shot. discs[strikerIndex] gets the velocity (dirX,dirY unit vector) * speed.
      * The discs passed in are not changed: the result holds the final copies.
@@ -71,6 +80,7 @@ public final class CarromSim {
                 for (int i = 0; i < n; i++) {
                     Disc a = d[i];
                     if (a.potted) continue;
+                    float oldX = a.x, oldY = a.y;
                     float sp = (float) Math.sqrt(a.vx * a.vx + a.vy * a.vy);
                     if (sp > STOP_SPEED) {
                         a.x += a.vx * dt;
@@ -89,8 +99,8 @@ public final class CarromSim {
                     // large must keep colliding with the corner cushions instead of slipping into a jaw.
                     boolean inMouth = false;
                     for (int pm = 0; pm < pocketX.length; pm++) {
-                        float mx = a.x - pocketX[pm], my = a.y - pocketY[pm];
-                        float d2 = mx * mx + my * my;
+                        float d2 = segmentDistanceSquared(pocketX[pm], pocketY[pm],
+                                oldX, oldY, a.x, a.y);
                         if (a.owner == STRIKER) {
                             if (pocketR > a.r * 1.03f && d2 < mouthR2) {
                                 inMouth = true;
@@ -109,7 +119,9 @@ public final class CarromSim {
                     // pockets
                     for (int p = 0; p < pocketX.length; p++) {
                         float dx = a.x - pocketX[p], dy = a.y - pocketY[p];
-                        if (a.owner == STRIKER && dx * dx + dy * dy < strikerMinD2) strikerMinD2 = dx * dx + dy * dy;
+                        float segmentD2 = segmentDistanceSquared(pocketX[p], pocketY[p],
+                                oldX, oldY, a.x, a.y);
+                        if (a.owner == STRIKER && segmentD2 < strikerMinD2) strikerMinD2 = segmentD2;
                         float captureR;
                         if (a.owner == STRIKER) {
                             // Only the free clearance inside the hole can swallow the striker.
@@ -119,8 +131,10 @@ public final class CarromSim {
                         } else {
                             captureR = Math.max(2f, pocketR - a.r * 0.55f);
                         }
-                        if (captureR > 0f && dx * dx + dy * dy < captureR * captureR) {
+                        if (captureR > 0f && segmentD2 < captureR * captureR) {
                             a.potted = true;
+                            a.x = pocketX[p];
+                            a.y = pocketY[p];
                             a.vx = 0f;
                             a.vy = 0f;
                             if (a.owner == MINE) {

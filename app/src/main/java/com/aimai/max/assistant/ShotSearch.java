@@ -60,7 +60,8 @@ public final class ShotSearch {
                                           float pocketX, float pocketY, float pocketR) {
         if (result == null || result.discs == null || targetIndex < 0 || targetIndex >= result.discs.size()) return false;
         CarromSim.Disc target = result.discs.get(targetIndex);
-        return target.potted && Math.hypot(target.x - pocketX, target.y - pocketY) <= pocketR;
+        float coinCaptureRadius = Math.max(2f, pocketR - target.r * 0.55f);
+        return target.potted && Math.hypot(target.x - pocketX, target.y - pocketY) <= coinCaptureRadius;
     }
     static void preferDirectPotOutcomes(List<Outcome> outcomes) {
         boolean directPotExists = false;
@@ -142,7 +143,8 @@ public final class ShotSearch {
             py[i] = a.pockets.get(i).y;
             pr += a.pockets.get(i).radius / 4f;
         }
-        pr *= 0.82f; // the coin has to go well inside the hole, not just touch its edge
+        // Keep the measured physical opening intact: the simulator needs it to decide whether
+        // the larger striker can enter a pocket. Coin capture is margin-adjusted separately.
         float L = a.board.left, T = a.board.top, R = a.board.right, B = a.board.bottom;
 
         List<Outcome> outcomes = new ArrayList<>();

@@ -84,6 +84,22 @@ public class ShotSearchPreferenceTest {
         assertTrue(ShotSearch.targetPottedAt(result, 1, 40f, 40f, 28f));
     }
 
+    @Test
+    public void selectedCoinMustReachTheCaptureAreaNotJustThePocketEdge() {
+        CarromSim.Result result = new CarromSim.Result();
+        CarromSim.Disc target = new CarromSim.Disc();
+        target.potted = true;
+        target.r = 10f;
+        target.x = 23f;
+        target.y = 0f;
+        result.discs = new ArrayList<>();
+        result.discs.add(target);
+        assertFalse("coin centre outside the capture margin must not count",
+                ShotSearch.targetPottedAt(result, 0, 0f, 0f, 28f));
+        target.x = 20f;
+        assertTrue(ShotSearch.targetPottedAt(result, 0, 0f, 0f, 28f));
+    }
+
     private static ShotSearch.Outcome outcome(int kind, boolean potsSomething) {
         Shot shot = new Shot();
         shot.kind = kind;
