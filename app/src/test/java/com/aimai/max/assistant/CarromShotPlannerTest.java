@@ -4,6 +4,7 @@ import com.aimai.max.assistant.CarromBoardAnalyzer.Analysis;
 import com.aimai.max.assistant.CarromBoardAnalyzer.Piece;
 import com.aimai.max.assistant.CarromBoardAnalyzer.PieceType;
 import com.aimai.max.assistant.CarromBoardAnalyzer.Pocket;
+import com.aimai.max.assistant.CarromShotPlanner.Shot;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
