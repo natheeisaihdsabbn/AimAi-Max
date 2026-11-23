@@ -761,7 +761,7 @@ public class MainActivity extends Activity {
         sectionLabel(column, "ABOUT");
         LinearLayout about = groupCard();
         addSettingRow(about, IconView.DOC, "Version", versionName(), null, false, null);
-        addSettingRow(about, IconView.CHIP, "Build", String.valueOf(BuildConfig.VERSION_CODE), null, false, null);
+        addSettingRow(about, IconView.CHIP, "Build", versionCode(), null, false, null);
         addSettingRow(about, IconView.CHIP, "Architecture", Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0].toUpperCase() : "—", null, false, null);
         addSettingRow(about, IconView.INFO, "Legal", "›", null, true, v -> showLegal());
         column.addView(about, lp(-1, -2));
@@ -807,6 +807,15 @@ public class MainActivity extends Activity {
     private String versionName() {
         try {
             return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+        } catch (Exception e) {
+            return "—";
+        }
+    }
+
+    private String versionCode() {
+        try {
+            android.content.pm.PackageInfo info = getPackageManager().getPackageInfo(getPackageName(), 0);
+            return String.valueOf(Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
         } catch (Exception e) {
             return "—";
         }
