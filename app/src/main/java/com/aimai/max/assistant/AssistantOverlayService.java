@@ -141,6 +141,7 @@ public class AssistantOverlayService extends Service {
             boolean slideOn = settings().getBoolean("slide_enabled", true) && sliderY > 0f;
             boolean wantSlide = intent.getBooleanExtra("analysisFresh", false) && slideOn && bestFound && sliderTries < 2
                     && Math.abs(bestX - x) > 0.010f
+                    && (!autoPlay || !curPlanAtCurrent)
                     && (!curPlanAtCurrent || bestScore > curScore + 4f);
 
             // Draw the selected route. If it is an alternate striker position, it is guidance only
@@ -727,6 +728,7 @@ public class AssistantOverlayService extends Service {
                 return;
             }
             autoPlay = checked;
+            ScanPipeline.autoPlayMode = checked;
             refreshAutoChip();
             if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);
             if (checked) AimAiGestureService.setScanEnabled(true);
@@ -974,6 +976,7 @@ public class AssistantOverlayService extends Service {
             return;
         }
         autoPlay = on;
+        ScanPipeline.autoPlayMode = on;
         if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(on);
         if (on) AimAiGestureService.setScanEnabled(true);
         waitingForSettle = false;
@@ -1199,6 +1202,7 @@ public class AssistantOverlayService extends Service {
     @Override
     public void onDestroy() {
         uiHandler.removeCallbacks(watchdog);
+        ScanPipeline.autoPlayMode = false;
         AimAiGestureService.setScanEnabled(false);
         if (liveGuidePreferencesListener != null) {
             getSharedPreferences("aimai_settings", MODE_PRIVATE)

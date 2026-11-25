@@ -18,6 +18,15 @@ public class AutoPlayGateTest {
     }
 
     @Test
+    public void autoPlaySkipsOptionalSliderSearchWhenCurrentSafeShotExists() {
+        assertFalse(AutoPlayGate.shouldSearchAlternatePosition(true, true));
+        assertTrue("search another striker position if no current safe shot exists",
+                AutoPlayGate.shouldSearchAlternatePosition(true, false));
+        assertTrue("manual search keeps alternate-position guidance",
+                AutoPlayGate.shouldSearchAlternatePosition(false, true));
+    }
+
+    @Test
     public void reportsDisconnectedAccessibilityBeforeOtherConditions() {
         assertEquals("Accessibility service is disconnected",
                 reason(false, false, true, false, false, false, false, false, false, false));

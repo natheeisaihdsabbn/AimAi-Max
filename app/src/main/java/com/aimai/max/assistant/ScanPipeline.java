@@ -15,6 +15,8 @@ import java.util.List;
 public class ScanPipeline {
 
     private static final long HOLD_LAST_MS = 1500L;
+    /** Auto Play prefers an already-safe current-position shot over an optional slider search. */
+    public static volatile boolean autoPlayMode = false;
 
     private int stableFrameCount = 0;
     private int looseFrameCount = 0;
@@ -416,11 +418,13 @@ public class ScanPipeline {
                 cur = cacheCur;
                 best = cacheBest;
             } else if (looseFrameCount >= 1) {
-                // Always scan the complete legal baseline before choosing the shot. A valid
-                // current-position pot does not mean it is the best angle; the baseline may offer
-                // a much straighter, clearer route to the same coin and pocket.
+                // A safe shot from the current striker position is enough for Auto Play to act;
+                // only search alternate slider positions when no current-position pot was found.
                 cur = ShotSearch.search(result, false, false, 260L, 32);
-                best = slideOn ? ShotSearch.search(result, false, true, 420L, 32) : null;
+                boolean searchAlternatePosition = slideOn
+                        && AutoPlayGate.shouldSearchAlternatePosition(autoPlayMode, cur.best != null);
+                best = searchAlternatePosition
+                        ? ShotSearch.search(result, false, true, 420L, 32) : null;
                 cacheCur = cur;
                 cacheBest = best;
                 cacheSx = striker.x;

@@ -4,6 +4,10 @@ package com.aimai.max.assistant;
 final class AutoPlayGate {
     private AutoPlayGate() {}
 
+    static boolean shouldSearchAlternatePosition(boolean autoPlay, boolean currentSafeShotFound) {
+        return !autoPlay || !currentSafeShotFound;
+    }
+
     static String blockedReason(boolean accessibilityConnected,
                                 boolean freshAnalysis,
                                 boolean waitingForSettle,
