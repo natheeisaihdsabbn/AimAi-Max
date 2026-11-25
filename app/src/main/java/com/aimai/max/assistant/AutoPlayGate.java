@@ -8,6 +8,12 @@ final class AutoPlayGate {
         return !autoPlay || !currentSafeShotFound;
     }
 
+    static boolean canUnlockAfterShot(boolean boardStable, boolean sawMotionAfterShot,
+                                      long elapsedMs, long minimumMs, long noMotionTimeoutMs) {
+        return boardStable && elapsedMs >= minimumMs
+                && (sawMotionAfterShot || elapsedMs >= noMotionTimeoutMs);
+    }
+
     static String blockedReason(boolean accessibilityConnected,
                                 boolean freshAnalysis,
                                 boolean waitingForSettle,

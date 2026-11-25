@@ -31,8 +31,8 @@ public class AssistantOverlayService extends Service {
 
     private static final long MIN_SHOT_GAP_MS = 300L;
     private static final long SETTLE_MIN_MS = 350L;
-    /** If the board never reports a change after a shot, allow a retry after this long. */
-    private static final long SETTLE_TIMEOUT_MS = 2600L;
+    /** If motion was not observed, retry only after repeated stable scans and this short timeout. */
+    private static final long SETTLE_TIMEOUT_MS = 900L;
     /** Wait this long after sliding the striker before looking at the board again. */
     private static final long SLIDER_GAP_MS = 250L;
 
@@ -93,8 +93,8 @@ public class AssistantOverlayService extends Service {
             // Track the shot cycle: shot -> pieces move -> pieces stop -> scan again -> next shot.
             if (waitingForSettle) {
                 if (!boardStable) sawMotionAfterShot = true;
-                boolean settled = boardSteady && now - lastAutoShotAt >= SETTLE_MIN_MS
-                        && (sawMotionAfterShot || now - lastAutoShotAt >= SETTLE_TIMEOUT_MS);
+                boolean settled = AutoPlayGate.canUnlockAfterShot(boardStable, sawMotionAfterShot,
+                        now - lastAutoShotAt, SETTLE_MIN_MS, SETTLE_TIMEOUT_MS);
                 if (settled) {
                     waitingForSettle = false;
                     sawMotionAfterShot = false;
@@ -200,7 +200,7 @@ public class AssistantOverlayService extends Service {
                     // Always use the aim point from the current-position simulation. For bank shots
                     // this is the first wall-contact point; for direct/coin-bank shots it is the ghost point.
                     if (!aimUsable) return;
-                    boolean pullBack = settings().getBoolean("reverse_shot_direction", true);
+                    boolean pullBack = settings().getBoolean("reverse_shot_direction", false);
                     float powerMul = settings().getInt("power_pct", 100) / 100f
                             * intent.getFloatExtra("curPowerMul", 1f);
                     AimAiGestureService.swipeDurationMs = humanStyle()
@@ -342,11 +342,11 @@ public class AssistantOverlayService extends Service {
         super.onCreate();
         android.content.SharedPreferences prefs =
                 getSharedPreferences("aimai_settings", MODE_PRIVATE);
-        // The gameplay clip shows the shot stroke pulled away from the target. Migrate installs
-        // once to that slingshot gesture; the in-game reverse toggle remains available.
-        if (!prefs.getBoolean("direction_default_v3", false)) {
-            prefs.edit().putBoolean("reverse_shot_direction", true)
-                    .putBoolean("direction_default_v3", true).apply();
+        // Earlier builds inverted the planner vector by default. Correct old installs once;
+        // the reverse toggle remains available for games that explicitly use pull-back controls.
+        if (!prefs.getBoolean("direction_default_v4", false)) {
+            prefs.edit().putBoolean("reverse_shot_direction", false)
+                    .putBoolean("direction_default_v4", true).apply();
         }
         // A new session always starts with striker sliding allowed.
         prefs.edit().putBoolean("slide_enabled", true).apply();
@@ -910,7 +910,7 @@ public class AssistantOverlayService extends Service {
         powerRow.addView(plus, new LinearLayout.LayoutParams(dp(48), dp(34)));
         col.addView(powerRow);
 
-        Switch reverseDirection = accentSwitch(settings().getBoolean("reverse_shot_direction", true));
+        Switch reverseDirection = accentSwitch(settings().getBoolean("reverse_shot_direction", false));
         col.addView(switchRow("Reverse stick direction", reverseDirection));
         reverseDirection.setOnCheckedChangeListener((button, checked) ->
                 settings().edit().putBoolean("reverse_shot_direction", checked).apply());

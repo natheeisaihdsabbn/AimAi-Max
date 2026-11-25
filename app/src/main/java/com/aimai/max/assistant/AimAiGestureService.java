@@ -221,7 +221,7 @@ public class AimAiGestureService extends AccessibilityService {
         float pull = minSide * (0.20f + 0.30f * strength) * Math.max(0.2f, powerMul);
 
         float sx = clamp(x, 2, w - 2), sy = clamp(y, 2, h - 2);          // exact striker position
-        float dir = pullBack ? -1f : 1f;
+        float dir = ShotDirectionPolicy.strokeSign(pullBack);
         ux *= dir;
         uy *= dir;
         // Shorten the drag before it reaches a screen edge. Clamping x and y independently

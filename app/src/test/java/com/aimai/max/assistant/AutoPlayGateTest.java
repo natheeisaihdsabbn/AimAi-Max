@@ -27,6 +27,21 @@ public class AutoPlayGateTest {
     }
 
     @Test
+    public void defaultTouchStrokeFollowsAimVectorAndReverseIsExplicit() {
+        assertEquals(1f, ShotDirectionPolicy.strokeSign(false), 0f);
+        assertEquals(-1f, ShotDirectionPolicy.strokeSign(true), 0f);
+    }
+
+    @Test
+    public void shotCycleUnlocksQuicklyOnlyAfterRepeatedStableBoardScans() {
+        assertFalse(AutoPlayGate.canUnlockAfterShot(false, true, 500, 350, 900));
+        assertFalse(AutoPlayGate.canUnlockAfterShot(true, true, 200, 350, 900));
+        assertTrue(AutoPlayGate.canUnlockAfterShot(true, true, 350, 350, 900));
+        assertFalse(AutoPlayGate.canUnlockAfterShot(true, false, 899, 350, 900));
+        assertTrue(AutoPlayGate.canUnlockAfterShot(true, false, 900, 350, 900));
+    }
+
+    @Test
     public void reportsDisconnectedAccessibilityBeforeOtherConditions() {
         assertEquals("Accessibility service is disconnected",
                 reason(false, false, true, false, false, false, false, false, false, false));
