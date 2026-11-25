@@ -64,6 +64,8 @@ public final class CarromBoardAnalyzer {
         public Board board = new Board();
         public List<Piece> pieces = new ArrayList<>();
         public List<Pocket> pockets = new ArrayList<>();
+        /** True only when all four pocket centers came from visible pocket components, not estimates. */
+        public boolean pocketsVisuallyDetected;
         public Piece striker;
     }
 
@@ -250,11 +252,16 @@ public final class CarromBoardAnalyzer {
                 {result.board.left + inset, result.board.bottom - inset},
                 {result.board.right - inset, result.board.bottom - inset}};
         boolean[] seen = new boolean[gw * gh];
+        boolean allPocketsDetected = true;
         for (int i = 0; i < 4; i++) {
             Pocket p = findPocket(f, seen, gw, gh, corners[i][0], corners[i][1], cw, step, base);
-            if (p == null) p = new Pocket(fallback[i][0], fallback[i][1], 0.04f * base);
+            if (p == null) {
+                allPocketsDetected = false;
+                p = new Pocket(fallback[i][0], fallback[i][1], 0.04f * base);
+            }
             result.pockets.add(p);
         }
+        result.pocketsVisuallyDetected = allPocketsDetected;
 
         float rc = COIN_RADIUS_RATIO * base;
         float rs = STRIKER_RADIUS_RATIO * base;

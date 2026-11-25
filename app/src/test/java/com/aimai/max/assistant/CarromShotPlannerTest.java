@@ -14,6 +14,16 @@ import java.util.List;
 public class CarromShotPlannerTest {
 
     @Test
+    public void shotSearchRejectsEstimatedPocketFallbacks() {
+        Analysis a = new Analysis();
+        a.board.detected = true;
+        a.striker = new Piece(500f, 900f, 36f, PieceType.STRIKER);
+        for (int i = 0; i < 4; i++) a.pockets.add(new Pocket(40f + i, 40f, 40f));
+        assertNull("inferred pocket coordinates must not authorize Auto Play",
+                ShotSearch.search(a, false, false, 100L, 32).best);
+    }
+
+    @Test
     public void neverPlansOpponentCoinsEvenWhenAnyCoinFlagIsSet() {
         Analysis a = new Analysis();
         a.board.left = 0f;

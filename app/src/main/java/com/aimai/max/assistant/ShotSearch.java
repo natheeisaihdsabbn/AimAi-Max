@@ -83,7 +83,8 @@ public final class ShotSearch {
 
     public static Result search(Analysis a, boolean anyCoin, boolean slide, long budgetMs, int maxCands) {
         Result result = new Result();
-        if (a == null || a.striker == null || !a.board.detected || a.pockets.size() < 4) {
+        if (a == null || a.striker == null || !a.board.detected || a.pockets.size() < 4
+                || !a.pocketsVisuallyDetected) {
             return result;
         }
         long started = android.os.SystemClock.elapsedRealtime();
