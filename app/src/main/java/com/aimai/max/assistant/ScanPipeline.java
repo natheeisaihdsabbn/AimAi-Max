@@ -217,11 +217,16 @@ public class ScanPipeline {
     }
 
     private static String cacheContext(CarromBoardAnalyzer.Analysis a, String mode, boolean cover, boolean slide) {
-        StringBuilder key = new StringBuilder(32 + a.pieces.size() * 12);
-        key.append(mode).append('|').append(cover).append('|').append(slide).append('|');
+        StringBuilder key = new StringBuilder(64 + (a.pieces.size() + a.pockets.size()) * 12);
+        key.append(mode).append('|').append(cover).append('|').append(slide).append('|')
+                .append(a.pocketsVisuallyDetected).append('|');
         for (CarromBoardAnalyzer.Piece p : a.pieces) {
             key.append(p.type.ordinal()).append(':').append(p.mine ? '1' : '0').append(':')
                     .append(Math.round(p.x)).append(':').append(Math.round(p.y)).append(';');
+        }
+        for (CarromBoardAnalyzer.Pocket pocket : a.pockets) {
+            key.append('p').append(Math.round(pocket.x)).append(':').append(Math.round(pocket.y))
+                    .append(':').append(Math.round(pocket.radius)).append(';');
         }
         return key.toString();
     }
