@@ -65,6 +65,8 @@ public class AssistantOverlayService extends Service {
     /** True once the board was seen moving (unstable) after the last shot. */
     private boolean sawMotionAfterShot = false;
     private boolean warnedNoAccessibility = false;
+    private String lastAutoBlockReason = "";
+    private long lastAutoBlockAt = 0L;
 
     private final android.content.BroadcastReceiver pieceReceiver =
             new android.content.BroadcastReceiver() {
@@ -75,6 +77,7 @@ public class AssistantOverlayService extends Service {
             // Everything (guide, scanning results, AUTO PLAY) is dead while the game is not in front.
             if (aimGuideView == null || !gameForeground
                     || !AimAiGestureService.isGameForeground()) {
+                if (autoPlay) reportAutoBlock("Waiting for the game to be in the foreground");
                 return;
             }
 
@@ -102,6 +105,7 @@ public class AssistantOverlayService extends Service {
             }
 
             if (!intent.getBooleanExtra("isStriker", false)) {
+                if (autoPlay) reportAutoBlock("Waiting for your turn and a detected striker");
                 setOverlayAlpha(0f);
                 if (pathView != null) pathView.clear();
                 aimGuideView.setShotRoute(0f, 0f, 0f, 0f, false);
@@ -163,27 +167,38 @@ public class AssistantOverlayService extends Service {
             boolean hasPot = curFound ? intent.getBooleanExtra("curPots", false) : intent.getBooleanExtra("bestPots", false);
             // Covering the red coin: never fire a shot that cannot pot while a better spot may still be found (8 s at most)
             boolean coverHold = cover && !hasPot && !wantSlide && now - coverSince < 8000L;
+            float aimX = intent.getFloatExtra("curAimX", Float.NaN);
+            float aimY = intent.getFloatExtra("curAimY", Float.NaN);
+            int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
+            int sw = size[0];
+            int sh = size[1];
+            boolean aimUsable = Float.isFinite(aimX) && Float.isFinite(aimY)
+                    && Math.hypot((aimX - x) * sw, (aimY - y) * sh) >= 8f;
+            boolean cooldownElapsed = lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap();
+            String autoBlockReason = autoPlay ? AutoPlayGate.blockedReason(
+                    AimAiGestureService.isConnected(), intent.getBooleanExtra("analysisFresh", false),
+                    waitingForSettle, boardSteady, coverHold, wantSlide, curPlanAtCurrent,
+                    curFound || bestFound, cooldownElapsed, aimUsable) : null;
+            if (autoPlay && autoBlockReason != null) reportAutoBlock(autoBlockReason);
+            else clearAutoBlock();
+
             if (autoPlay && !coverHold && !waitingForSettle && boardSteady && (curPlanAtCurrent || wantSlide)
-                    && (lastAutoShotAt == 0L || now - lastAutoShotAt > minShotGap())
-                    && AimAiGestureService.isConnected()) {
-                int[] size = ScreenMetrics.realSize(AssistantOverlayService.this);
-                int sw = size[0];
-                int sh = size[1];
+                    && cooldownElapsed && AimAiGestureService.isConnected()) {
                 if (wantSlide) {
                     if (now - lastSliderAt > SLIDER_GAP_MS) {
                         boolean moved = AimAiGestureService.dragSlider(x * sw, bestX * sw, sliderY * sh, sw, sh);
                         if (moved) {
                             sliderTries++;
                             lastSliderAt = now;
+                            reportAutoBlock("Striker reposition sent; waiting for a fresh scan");
+                        } else {
+                            reportAutoBlock("Striker reposition was rejected; check the game slider");
                         }
                     }
                 } else if (curPlanAtCurrent) {
                     // Always use the aim point from the current-position simulation. For bank shots
                     // this is the first wall-contact point; for direct/coin-bank shots it is the ghost point.
-                    float aimX = intent.getFloatExtra("curAimX", Float.NaN);
-                    float aimY = intent.getFloatExtra("curAimY", Float.NaN);
-                    if (!Float.isFinite(aimX) || !Float.isFinite(aimY)
-                            || Math.hypot((aimX - x) * sw, (aimY - y) * sh) < 8f) return;
+                    if (!aimUsable) return;
                     boolean pullBack = settings().getBoolean("reverse_shot_direction", true);
                     float powerMul = settings().getInt("power_pct", 100) / 100f
                             * intent.getFloatExtra("curPowerMul", 1f);
@@ -197,6 +212,9 @@ public class AssistantOverlayService extends Service {
                         lastAutoStrikerX = x;
                         lastAutoStrikerY = y;
                         sliderTries = 0;
+                        reportAutoBlock("Shot sent; waiting for the board to settle");
+                    } else {
+                        reportAutoBlock("Shot gesture was rejected; check Accessibility and screen position");
                     }
                 }
             }
@@ -219,6 +237,21 @@ public class AssistantOverlayService extends Service {
     };
 
     private long lastHintAt = 0L;
+    private void reportAutoBlock(String reason) {
+        long now = android.os.SystemClock.elapsedRealtime();
+        boolean changed = !reason.equals(lastAutoBlockReason);
+        if (changed || now - lastAutoBlockAt >= 3000L) {
+            lastAutoBlockReason = reason;
+            lastAutoBlockAt = now;
+            android.util.Log.i("AimAiAutoPlay", "Status: " + reason);
+            hint("Auto Play: " + reason);
+        }
+    }
+
+    private void clearAutoBlock() {
+        lastAutoBlockReason = "";
+        lastAutoBlockAt = 0L;
+    }
 
     /** Short on-screen message about what Auto Play is doing, at most one every 1.2 seconds. */
     private void hint(String text) {
@@ -696,6 +729,7 @@ public class AssistantOverlayService extends Service {
             autoPlay = checked;
             refreshAutoChip();
             if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(checked);
+            if (checked) AimAiGestureService.setScanEnabled(true);
             waitingForSettle = false;
             sawMotionAfterShot = false;
             lastAutoShotAt = 0L;
@@ -704,6 +738,8 @@ public class AssistantOverlayService extends Service {
             sliderTries = 0;
             lastSliderAt = 0L;
             settings().edit().putBoolean("slide_enabled", true).apply();
+            if (checked) reportAutoBlock("On; starting a fresh board scan");
+            else clearAutoBlock();
         });
         col.addView(switchRow("Auto Play", autoSwitch));
 
@@ -939,6 +975,7 @@ public class AssistantOverlayService extends Service {
         }
         autoPlay = on;
         if (visibleSearchSwitch != null) visibleSearchSwitch.setEnabled(on);
+        if (on) AimAiGestureService.setScanEnabled(true);
         waitingForSettle = false;
         sawMotionAfterShot = false;
         lastAutoShotAt = 0L;
@@ -948,6 +985,8 @@ public class AssistantOverlayService extends Service {
         lastSliderAt = 0L;
         settings().edit().putBoolean("slide_enabled", true).apply();
         refreshAutoChip();
+        if (on) reportAutoBlock("On; starting a fresh board scan");
+        else clearAutoBlock();
         if (panel != null && panel.getVisibility() == View.VISIBLE && currentTab == 1) showTab(1);
     }
 
